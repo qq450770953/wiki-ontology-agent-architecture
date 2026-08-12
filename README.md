@@ -1,5 +1,7 @@
 # Wiki + Ontology 企业知识行动架构
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 > 让企业知识从"可检索"走向"可行动"：LLM Wiki 沉淀认识，Ontology 统一语义，确定性管线降低成本，反馈闭环实现知识复利。
 
 本仓库是一份**架构设计方案**（非实现代码），面向企业知识库 / AI Agent 平台的技术负责人和架构师。方案回答一个核心问题：**如何让 Agent 基于企业知识正确选择工具、绑定参数并完成跨系统查询，而不是停留在"检索到相关文档"？**
@@ -13,30 +15,41 @@
 
 ## 架构总览
 
+### 分层视图
+
+![六层架构总览](docs/images/architecture-overview.svg)
+
+六层职责一句话：**入口路由层**决定走哪条路，**知识层（Wiki）**负责记忆与沉淀，**语义层（Ontology）**统一业务语言，**执行层**区分确定性复用与自主执行，**接入层**访问真实系统，**治理层**横切保障安全与质量。
+
+### 完整链路（双路径 + 反馈闭环）
+
 ![完整链路架构图](docs/images/pipeline.svg)
 
-- **左侧（命中路径）**：确定性执行，0 token
-- **右侧（自主执行管线）**：LLM 五步执行 + 反馈确认 + 固化回 Wiki
+- **左侧（命中路径）**：确定性执行，0 token、秒级响应
+- **右侧（自主执行管线）**：LLM 五步执行 → 正向反馈确认 → 总结固化回 Wiki
 - **绿色虚线（回环）**：知识复利，固化后下次入口直接命中
 
 ## 仓库结构
 
 ```
 wiki-ontology-agent-architecture/
-├── README.md                # 本文件：项目简介与快速导航
-├── LICENSE                  # MIT License
+├── README.md                    # 项目简介与快速导航
+├── LICENSE                      # MIT License
+├── CONTRIBUTING.md              # 贡献指南
 └── docs/
-    ├── architecture.md      # 完整架构设计文档（核心交付物）
+    ├── architecture.md          # 完整架构设计文档（核心交付物）
     └── images/
-        └── pipeline.svg     # 完整链路架构图
+        ├── architecture-overview.svg   # 六层架构总览图
+        └── pipeline.svg                # 完整链路架构图
 ```
 
 ## 快速阅读指南
 
 - 想了解整体方案：读 [docs/architecture.md](docs/architecture.md)
-- 想理解双路径与闭环：看架构图 + architecture.md 第 4 章
+- 想理解双路径与闭环：看完整链路图 + architecture.md 第 4 章
 - 想评估 token 成本：看 architecture.md 第 7 章
 - 想落地实施：看 architecture.md 第 11 章落地路线图
+- 想参与贡献：读 [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## 设计来源
 
@@ -44,4 +57,4 @@ wiki-ontology-agent-architecture/
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) —— 详见 [CONTRIBUTING.md](CONTRIBUTING.md) 中的贡献者许可说明。
