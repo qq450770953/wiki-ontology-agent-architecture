@@ -1,7 +1,7 @@
 # Wiki + Ontology 企业知识行动架构设计
 
-> 版本：v1.0（2026-08）
-> 状态：架构设计稿，非实现代码
+> 版本：v1.1（2026-08-13）
+> 状态：架构设计稿 + 参考实现映射（实现见 [ontology-enterprise](https://github.com/qq450770953/ontology-enterprise)）
 > 读者对象：企业知识库 / AI Agent 平台的技术负责人、架构师、数据治理负责人
 
 ## 目录
@@ -17,6 +17,7 @@
 9. [安全与治理](#9-安全与治理)
 10. [风险与边界](#10-风险与边界)
 11. [落地路线图](#11-落地路线图)
+11.1. [参考实现映射](#111-参考实现映射)
 12. [参考](#12-参考)
 
 ---
@@ -268,6 +269,21 @@ required_permission: finance_read
 5. **评测**：覆盖实体解析、指标口径、工具选择、参数填写、权限停止、结果追溯——不只评价"答案像不像"。
 6. **启用反馈固化**：接入确认信号与人工审核队列，逐步让系统"学会"高频问题。
 7. **持续治理**：增量更新、定期 Lint、版本失效。
+
+## 11.1 参考实现映射
+
+本设计已有可运行参考实现 **[ontology-enterprise](https://github.com/qq450770953/ontology-enterprise)**（Python CLI + SQLite）。设计概念到实现能力的映射：
+
+| 本设计章节 | 设计概念 | 实现能力 |
+|---|---|---|
+| §3 语义层 | Ontology 实体（唯一 ID / 别名 / 关系 / 口径版本 / 生效时间 / 权限约束） | `type define`（schema：required/enum/type）、`object create/get/query/update/delete`、`object alias-add/resolve`（namespace 消歧）、实体 version/effective_from/effective_to |
+| §3 语义层 | 关系与约束（from/to 类型、基数、环） | `link relate/related`（cardinality=many_to_one、acyclic 环检测） |
+| §4 命中路径 | 确定性复用、0 token、可审计 | `state transition`（状态机合法流转）+ `method run`（白名单沙箱确定性计算） |
+| §4 未命中路径 | 受治理动作（前置条件 / 权限 / 幂等） | `action register/run`（preconditions、required_role、idempotency-key、side_effect、risk） |
+| §9 安全与治理 | 权限校验、审计可追溯、数据血缘 | `policy add/check`（RBAC）、`audit query`（全操作审计）、`lineage trace`（血缘追溯） |
+| §8 知识复利 | 固化写回、版本失效 | SQLite 存储 + `--root` 隔离；实体 `supersedes_id`/status 支持替代与失效 |
+
+> 说明：参考实现聚焦"语义层 + 执行层 + 治理层"的可运行底座；"入口路由层（Wiki 索引匹配）"与"接入层（MCP/CLI/API 真实系统）"需按 §11 路线图在企业场景中接入。
 
 ## 12. 参考
 

@@ -51,6 +51,22 @@ wiki-ontology-agent-architecture/
 - 想落地实施：看 architecture.md 第 11 章落地路线图
 - 想参与贡献：读 [CONTRIBUTING.md](CONTRIBUTING.md)
 
+## 参考实现（可运行）
+
+本仓库是**设计文档**，配套的**可运行参考实现**见：
+
+**[ontology-enterprise](https://github.com/qq450770953/ontology-enterprise)** —— 企业级类型化知识图谱运行时（Python CLI + SQLite），将本设计落地为六大能力：
+
+| 本设计（架构层） | 参考实现（ontology-enterprise） |
+|---|---|
+| 语义层：Ontology 实体/关系/约束 | `type define` / `object` / `link`（基数、环检测） |
+| 治理层：指标口径版本/约束校验 | `state` 状态机 + `method` 确定性计算 + `type` schema 校验 |
+| 执行层：受治理动作 | `action`（前置条件/角色/幂等/副作用/审计） |
+| 治理层：权限/审计/血缘 | `policy`（RBAC）+ `audit` + `lineage` |
+| 双路径中"确定性优先" | 命中式复用：Method 沙箱 + 模板化确定性执行 |
+
+想动手体验：clone 后 `python3 scripts/ontology_enterprise.py --root ./ontology init` 即可起一个带 RBAC 与审计的本地图谱。
+
 ## 设计来源
 
 本方案综合以下思想：Andrej Karpathy 的 LLM Wiki（知识编译与复利）、W3C OWL（本体语义）、Lewis 等人的 RAG（证据检索）、Yao 等人的 ReAct（推理-行动循环）、Model Context Protocol（工具接入），并将其组织为一条"记忆（Wiki）→ 语义（Ontology）→ 行动（工具）→ 复利（回环）"的完整链路。
