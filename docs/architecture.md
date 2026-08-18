@@ -221,6 +221,30 @@ required_permission: finance_read
 
 每页至少包含：唯一 ID、类型（实体/概念/流程/模板）、标题、正文、来源、版本、生效时间、状态（active / superseded）、负责人、关联页面。
 
+### 6.6 Lesson 经验实体（经验沉淀）
+
+借鉴 Agent Memory 的会话记忆模式，把"踩过的坑"沉淀为可检索、可关联、带血缘的资产，与 Wiki 知识页互补：**Wiki 存知识（编译过的结论），Lesson 存经验（发生过的事 + 学到的）**。
+
+```yaml
+id: lesson.port_conflict_20260818
+type: Lesson
+action: docker compose up          # 做了什么
+context: local dev, port 3000      # 场景
+outcome: negative                  # positive | negative
+insight: check port before start   # 下次怎么做
+area: dev                          # 领域标签
+learned_from: task.dev_001         # 关联实体（可选）
+status: active
+source: session-2026-08-18
+```
+
+设计要点：
+
+- **四元组必填**：`action`（做了什么）/ `context`（场景）/ `outcome`（positive|negative）/ `insight`（下次怎么做）。
+- **复用完整治理链**：类型约束（outcome 枚举）→ RBAC → 审计 → 血缘，与实体/指标同一套机制。
+- **会话记忆协议**：任务开始前 `lesson query --area <领域>` 加载相关教训；任务结束后沉淀新教训（失败复盘 → negative，验证有效 → positive）。
+- **负向知识参与复利**：失败案例固化后，下次同类问题直接规避，无需重新试错。
+
 ## 7. Token 成本分析
 
 | 方案 | 每次查询 token 估算 | 说明 |
@@ -240,6 +264,26 @@ required_permission: finance_read
 3. **版本失效**：固化条目带版本与生效时间，组织调整 / 口径变更 / 数据源下线时及时标记失效，避免旧知识长期误导。
 
 负向知识同样参与复利："这条路走不通"固化成规则，下次直接规避。
+
+### 8.1 会话记忆协议（Lesson 经验闭环）
+
+在正向固化之外，增加轻量的经验沉淀通道，加速知识复利：
+
+```text
+会话开始 (session start):
+  1. lesson query --area <当前任务领域>     → 加载近期相关教训（避免重复踩坑）
+  2. 读取相关实体 / 固化流程上下文
+  3. 结合教训与上下文开始任务
+
+会话结束 (session end):
+  1. 从对话提取持久事实 → 按现有流程固化进 Wiki
+  2. 失败 / 返工复盘 → lesson record --outcome negative（沉淀教训）
+  3. 验证有效的新方法 → lesson record --outcome positive（沉淀最佳实践）
+  4. 更新相关实体与来源
+```
+
+- Lesson 是**低风险固化**：仅记录操作经验，不改变口径 / 权限 / 数据源，可自动写回（对照 4.5 分级审核表中的"负向知识页，低"）。
+- 经验库随会话持续累积，使"自主执行管线"的失败率随使用时长下降，间接降低未命中路径的 token 消耗与返工成本。
 
 ## 9. 安全与治理
 

@@ -11,7 +11,8 @@
 1. **入口先查记忆（Wiki 层）**：用户提问后先查已固化的流程（映射表、SQL 模板、历史成功路径）。命中 → 确定性复用，0 token、秒级响应、结果可审计。
 2. **未命中再自主执行**：LLM 走五步管线——关键词映射 → Ontology 实体消歧 → 工具映射与参数绑定 → 跨系统执行 → 汇总解释。
 3. **正向反馈后固化**：执行成功并经确认后，把正确的流程、映射、模板写回 Wiki，形成知识复利闭环——同类问题下次直接走命中路径。
-4. **全程可治理**：指标口径、权限、版本、来源全部纳入 Ontology 与 Wiki 管理，错误固化有护栏，过期规则有失效机制。
+4. **经验沉淀（Lesson）**：借鉴 Agent Memory 会话记忆模式，任务开始加载领域教训、任务结束沉淀 positive/negative 经验，与 Wiki 知识页互补——**Wiki 存知识（编译过的结论），Lesson 存经验（发生过的事 + 学到的）**，负向知识同样参与复利。
+5. **全程可治理**：指标口径、权限、版本、来源全部纳入 Ontology 与 Wiki 管理，错误固化有护栏，过期规则有失效机制。
 
 ## 架构总览
 
@@ -48,6 +49,7 @@ wiki-ontology-agent-architecture/
 - 想了解整体方案：读 [docs/architecture.md](docs/architecture.md)
 - 想理解双路径与闭环：看完整链路图 + architecture.md 第 4 章
 - 想评估 token 成本：看 architecture.md 第 7 章
+- 想了解经验沉淀（Lesson / 会话记忆协议）：看 architecture.md 第 6.6 节与 8.1 节
 - 想落地实施：看 architecture.md 第 11 章落地路线图
 - 想参与贡献：读 [CONTRIBUTING.md](CONTRIBUTING.md)
 
