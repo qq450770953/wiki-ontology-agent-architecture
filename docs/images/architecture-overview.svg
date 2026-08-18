@@ -1,8 +1,8 @@
-<svg viewBox="0 0 680 506" width="100%" xmlns="http://www.w3.org/2000/svg" role="img">
-<title>六层架构总览</title>
-<desc>入口路由层、知识层（LLM Wiki）、语义层（Ontology）、执行层、接入层与治理层的分层架构</desc>
+<svg viewBox="0 0 680 580" width="100%" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>七层架构总览</title>
+<desc>入口路由层、知识层（LLM Wiki 含固化流程注册表）、语义层（Ontology）、执行层、Workflow 编排层（LangGraph）、接入层与治理层（含固化人工审批）的分层架构</desc>
 
-<text x="40" y="46" font-size="14" font-weight="500" fill="#2C2C2A" dominant-baseline="central">六层架构总览</text>
+<text x="40" y="46" font-size="14" font-weight="500" fill="#2C2C2A" dominant-baseline="central">七层架构总览</text>
 
 <g>
   <rect x="40" y="70" width="600" height="56" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
@@ -13,7 +13,7 @@
 <g>
   <rect x="40" y="138" width="600" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
   <text x="60" y="158" font-size="13" font-weight="500" fill="#085041" dominant-baseline="central">知识层（LLM Wiki）</text>
-  <text x="60" y="178" font-size="12" fill="#0F6E56" dominant-baseline="central">Raw Sources（不可篡改） · Wiki（实体/模板/映射/固化流程） · Schema（治理规范）</text>
+  <text x="60" y="178" font-size="12" fill="#0F6E56" dominant-baseline="central">Raw Sources · Wiki（实体/模板/映射/固化流程注册表） · Schema（治理规范）</text>
 </g>
 
 <g>
@@ -25,20 +25,26 @@
 <g>
   <rect x="40" y="274" width="600" height="56" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
   <text x="60" y="294" font-size="13" font-weight="500" fill="#444441" dominant-baseline="central">执行层</text>
-  <text x="60" y="314" font-size="12" fill="#5F5E5A" dominant-baseline="central">命中：确定性复用（0 token） ｜ 未命中：LLM 五步管线（消歧→选工具→绑定→执行→汇总）</text>
+  <text x="60" y="314" font-size="12" fill="#5F5E5A" dominant-baseline="central">命中：调用已固化 Workflow ｜ 未命中：五步自主管线执行（先验证后固化）</text>
 </g>
 
 <g>
-  <rect x="40" y="342" width="600" height="56" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
-  <text x="60" y="362" font-size="13" font-weight="500" fill="#444441" dominant-baseline="central">接入层</text>
-  <text x="60" y="382" font-size="12" fill="#5F5E5A" dominant-baseline="central">MCP · CLI · API · SQL —— 访问真实业务系统</text>
+  <rect x="40" y="342" width="600" height="56" rx="8" fill="#E8EFFA" stroke="#3B5BDB" stroke-width="0.5"/>
+  <text x="60" y="362" font-size="13" font-weight="500" fill="#2B4BB0" dominant-baseline="central">Workflow 编排层（LangGraph）</text>
+  <text x="60" y="382" font-size="12" fill="#3B5BDB" dominant-baseline="central">固化时按执行轨迹构图 · 加载已固化图执行 · 状态/重试/降级 · 步骤级审计</text>
 </g>
 
 <g>
-  <rect x="40" y="410" width="600" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
-  <text x="60" y="430" font-size="13" font-weight="500" fill="#085041" dominant-baseline="central">治理层（横切）</text>
-  <text x="60" y="450" font-size="12" fill="#0F6E56" dominant-baseline="central">反馈确认 · 人工审核 · 权限校验 · 版本失效 · 定期 Lint</text>
+  <rect x="40" y="410" width="600" height="56" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+  <text x="60" y="430" font-size="13" font-weight="500" fill="#444441" dominant-baseline="central">接入层</text>
+  <text x="60" y="450" font-size="12" fill="#5F5E5A" dominant-baseline="central">MCP · CLI · API · SQL —— 访问真实业务系统</text>
 </g>
 
-<text x="40" y="486" font-size="11" fill="#888780" dominant-baseline="central">执行细节（双路径 + 反馈闭环）见 pipeline.svg</text>
+<g>
+  <rect x="40" y="478" width="600" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+  <text x="60" y="498" font-size="13" font-weight="500" fill="#085041" dominant-baseline="central">治理层（横切）</text>
+  <text x="60" y="518" font-size="12" fill="#0F6E56" dominant-baseline="central">反馈确认 · 固化人工审批 · 权限校验 · 版本失效 · 定期 Lint</text>
+</g>
+
+<text x="40" y="556" font-size="11" fill="#888780" dominant-baseline="central">执行细节（双路径 + LangGraph 编排 + 固化审批闭环）见 pipeline.svg</text>
 </svg>

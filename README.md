@@ -2,15 +2,15 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> 让企业知识从"可检索"走向"可行动"：LLM Wiki 沉淀认识，Ontology 统一语义，确定性管线降低成本，反馈闭环实现知识复利。
+> 让企业知识从"可检索"走向"可行动"：LLM Wiki 沉淀认识，Ontology 统一语义，LangGraph Workflow 编排执行，固化经人工审批实现知识复利。
 
 本仓库是一份**架构设计方案**（非实现代码），面向企业知识库 / AI Agent 平台的技术负责人和架构师。方案回答一个核心问题：**如何让 Agent 基于企业知识正确选择工具、绑定参数并完成跨系统查询，而不是停留在"检索到相关文档"？**
 
 ## 核心设计
 
-1. **入口先查记忆（Wiki 层）**：用户提问后先查已固化的流程（映射表、SQL 模板、历史成功路径）。命中 → 确定性复用，0 token、秒级响应、结果可审计。
-2. **未命中再自主执行**：LLM 走五步管线——关键词映射 → Ontology 实体消歧 → 工具映射与参数绑定 → 跨系统执行 → 汇总解释。
-3. **正向反馈后固化**：执行成功并经确认后，把正确的流程、映射、模板写回 Wiki，形成知识复利闭环——同类问题下次直接走命中路径。
+1. **入口先查记忆（Wiki 层）**：用户提问后先查**固化流程注册表**（映射表、SQL 模板、已审批 Workflow 的目录）。命中 → 直接调用对应 LangGraph Workflow，低 token、秒级响应、结果可审计。
+2. **未命中先执行、后固化**：直接执行五步管线——关键词映射 → Ontology 实体消歧 → 工具映射与参数绑定 → 跨系统执行 → 汇总解释，全程受治理与审计并保留执行轨迹；确认无误后再按轨迹做 LangGraph 构图固化。
+3. **执行成功后构图固化（须人工审批）**：按执行轨迹编译为可复用的 LangGraph Workflow 定义，提交**人工审批**；过审后才更新 Wiki 固化流程注册表——同类问题下次直接命中调用。**审批未过不写 Wiki。**
 4. **经验沉淀（Lesson）**：借鉴 Agent Memory 会话记忆模式，任务开始加载领域教训、任务结束沉淀 positive/negative 经验，与 Wiki 知识页互补——**Wiki 存知识（编译过的结论），Lesson 存经验（发生过的事 + 学到的）**，负向知识同样参与复利。
 5. **全程可治理**：指标口径、权限、版本、来源全部纳入 Ontology 与 Wiki 管理，错误固化有护栏，过期规则有失效机制。
 
@@ -18,17 +18,17 @@
 
 ### 分层视图
 
-![六层架构总览](docs/images/architecture-overview.svg)
+![七层架构总览](docs/images/architecture-overview.svg)
 
-六层职责一句话：**入口路由层**决定走哪条路，**知识层（Wiki）**负责记忆与沉淀，**语义层（Ontology）**统一业务语言，**执行层**区分确定性复用与自主执行，**接入层**访问真实系统，**治理层**横切保障安全与质量。
+七层职责一句话：**入口路由层**决定走哪条路，**知识层（Wiki）**负责记忆与沉淀（维护固化流程注册表），**语义层（Ontology）**统一业务语言，**执行层**区分命中调用已固化 Workflow 与未命中五步管线执行，**Workflow 编排层（LangGraph）**固化时按执行轨迹构图、命中时加载已固化图执行，**接入层**访问真实系统，**治理层**横切保障安全与质量（含固化人工审批）。
 
-### 完整链路（双路径 + 反馈闭环）
+### 完整链路（双路径 + 固化审批闭环）
 
 ![完整链路架构图](docs/images/pipeline.svg)
 
-- **左侧（命中路径）**：确定性执行，0 token、秒级响应
-- **右侧（自主执行管线）**：LLM 五步执行 → 正向反馈确认 → 总结固化回 Wiki
-- **绿色虚线（回环）**：知识复利，固化后下次入口直接命中
+- **左侧（命中路径）**：从 Wiki 固化流程注册表取出已审批 Workflow，加载到 LangGraph 直接调用
+- **右侧（五步执行 + 固化审批）**：直接执行五步管线 → 正向反馈确认 → 按执行轨迹 LangGraph 构图 → **人工审批** → 过审后更新 Wiki 连接
+- **绿色虚线（回环）**：知识复利，过审注册后下次入口命中直接调用
 
 ## 仓库结构
 
@@ -40,7 +40,7 @@ wiki-ontology-agent-architecture/
 └── docs/
     ├── architecture.md          # 完整架构设计文档（核心交付物）
     └── images/
-        ├── architecture-overview.svg   # 六层架构总览图
+        ├── architecture-overview.svg   # 七层架构总览图
         └── pipeline.svg                # 完整链路架构图
 ```
 
@@ -48,6 +48,7 @@ wiki-ontology-agent-architecture/
 
 - 想了解整体方案：读 [docs/architecture.md](docs/architecture.md)
 - 想理解双路径与闭环：看完整链路图 + architecture.md 第 4 章
+- 想了解 Workflow 编排层：看 architecture.md 第 3.1 节与 6.7 节
 - 想评估 token 成本：看 architecture.md 第 7 章
 - 想了解经验沉淀（Lesson / 会话记忆协议）：看 architecture.md 第 6.6 节与 8.1 节
 - 想落地实施：看 architecture.md 第 11 章落地路线图
@@ -55,23 +56,25 @@ wiki-ontology-agent-architecture/
 
 ## 参考实现（可运行）
 
-本仓库是**设计文档**，配套的**可运行参考实现**见：
+本仓库是**设计文档**，配套的**可运行参考实现**为 **LangGraph + ontology-enterprise** 组合：
 
-**[ontology-enterprise](https://github.com/qq450770953/ontology-enterprise)** —— 企业级类型化知识图谱运行时（Python CLI + SQLite），将本设计落地为六大能力：
+- **[LangGraph](https://github.com/langchain-ai/langgraph)** 承担 **Workflow 编排层**（图编排、状态持久化、重试、断点续跑）；
+- **[ontology-enterprise](https://github.com/qq450770953/ontology-enterprise)**（Python CLI + SQLite）承担**语义层与治理底座**：
 
-| 本设计（架构层） | 参考实现（ontology-enterprise） |
+| 本设计（架构层） | 参考实现 |
 |---|---|
 | 语义层：Ontology 实体/关系/约束 | `type define` / `object` / `link`（基数、环检测） |
 | 治理层：指标口径版本/约束校验 | `state` 状态机 + `method` 确定性计算 + `type` schema 校验 |
+| Workflow 编排层：图/状态/重试/审计 | LangGraph 构图 + `state`/`method`/`action`/`audit` |
 | 执行层：受治理动作 | `action`（前置条件/角色/幂等/副作用/审计） |
 | 治理层：权限/审计/血缘 | `policy`（RBAC）+ `audit` + `lineage` |
-| 双路径中"确定性优先" | 命中式复用：Method 沙箱 + 模板化确定性执行 |
+| 双路径中"命中优先" | 固化流程注册表指向已审批图，直接加载调用 |
 
-想动手体验：clone 后 `python3 scripts/ontology_enterprise.py --root ./ontology init` 即可起一个带 RBAC 与审计的本地图谱。
+想动手体验语义底座：clone ontology-enterprise 后 `python3 scripts/ontology_enterprise.py --root ./ontology init` 即可起一个带 RBAC 与审计的本地图谱。
 
 ## 设计来源
 
-本方案综合以下思想：Andrej Karpathy 的 LLM Wiki（知识编译与复利）、W3C OWL（本体语义）、Lewis 等人的 RAG（证据检索）、Yao 等人的 ReAct（推理-行动循环）、Model Context Protocol（工具接入），并将其组织为一条"记忆（Wiki）→ 语义（Ontology）→ 行动（工具）→ 复利（回环）"的完整链路。
+本方案综合以下思想：Andrej Karpathy 的 LLM Wiki（知识编译与复利）、W3C OWL（本体语义）、Lewis 等人的 RAG（证据检索）、Yao 等人的 ReAct（推理-行动循环）、LangGraph（有状态图编排）、Model Context Protocol（工具接入），并将其组织为一条"记忆（Wiki 固化流程注册表）→ 语义（Ontology）→ 编排（LangGraph Workflow）→ 审批 → 复利（回环）"的完整链路。
 
 ## License
 
