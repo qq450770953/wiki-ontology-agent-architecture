@@ -41,6 +41,7 @@ wiki-ontology-agent-architecture/
 ├── CONTRIBUTING.md              # 贡献指南
 └── docs/
     ├── architecture.md          # 完整架构设计文档（核心交付物）
+    ├── references/             # 外部参考资料（PDF 等）
     └── images/
         ├── architecture-overview.svg   # 八层架构总览图
         └── pipeline.svg                # 完整链路架构图

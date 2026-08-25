@@ -489,6 +489,7 @@ status: confirmed                       # confirmed | hypothesis（确认后升�
 
 - Andrej Karpathy, *LLM Wiki*（GitHub Gist, 2026-04）
 - 凯哥探数, *AI时代的本体论：本体不是终点，实时上下文才是企业认知的生命线*（微信公众号, 2026-08）
+- 凯哥探数, *Actionable Knowledge Architecture：知识架构的进化——从本体工程到企业 AI 智能体*（扫描件 PDF, 14 页, 2026-08，[本地副本](references/Actionable_Knowledge_Architecture.pdf)）——结论公式 `Ontology（定义世界）+ Context（当前状态）+ LangGraph（编排行动）= Enterprise Autonomous Agent` 与本架构核心一致
 - W3C, *Web Ontology Language (OWL)*
 - Patrick Lewis et al., *Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks* (2020)
 - Shunyu Yao et al., *ReAct: Synergizing Reasoning and Acting in Language Models*
