@@ -1,0 +1,9 @@
+# 本地工作目录（AI 会话记忆 / 临时脚本），永不提交
+.workbuddy/
+
+# 系统文件
+Thumbs.db
+.DS_Store
+
+# 临时备份
+*.bak_v15

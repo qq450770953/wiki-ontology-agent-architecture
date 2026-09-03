@@ -1,8 +1,9 @@
 <svg viewBox="0 0 680 650" width="100%" xmlns="http://www.w3.org/2000/svg" role="img">
-<title>八层架构总览</title>
-<desc>入口路由层、知识层（LLM Wiki）、语义层（Ontology）、上下文层（Context）、执行层、Workflow 编排层（LangGraph）、接入层与治理层的分层架构</desc>
+<title>八层架构总览 v1.5</title>
+<desc>入口路由层、知识层（LLM Wiki）、语义层（Ontology）、上下文层（Context，含 ContextPack 组装）、执行层、Workflow 编排层（LangGraph）、接入层与治理层（含分级授权、四层评估、运行监控）的分层架构</desc>
 
 <text x="40" y="46" font-size="14" font-weight="500" fill="#2C2C2A" dominant-baseline="central">八层架构总览</text>
+<text x="640" y="46" font-size="12" font-weight="500" fill="#888780" text-anchor="end" dominant-baseline="central">v1.5</text>
 
 <g>
   <rect x="40" y="70" width="600" height="56" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
@@ -19,13 +20,13 @@
 <g>
   <rect x="40" y="206" width="600" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
   <text x="60" y="226" font-size="13" font-weight="500" fill="#085041" dominant-baseline="central">语义层（Ontology）</text>
-  <text x="60" y="246" font-size="12" fill="#0F6E56" dominant-baseline="central">实体 ID · 别名 · 关系 · 指标口径版本 · 约束（定义世界结构）</text>
+  <text x="60" y="246" font-size="12" fill="#0F6E56" dominant-baseline="central">实体/别名/关系/口径版本 · 图检索（多跳）· 记忆类型分类（policy 引用 / authz 限 scope）</text>
 </g>
 
 <g>
   <rect x="40" y="274" width="600" height="56" rx="8" fill="#F3EFFF" stroke="#7A5AF8" stroke-width="0.5"/>
   <text x="60" y="294" font-size="13" font-weight="500" fill="#5B3DF5" dominant-baseline="central">上下文层（Context）</text>
-  <text x="60" y="314" font-size="12" fill="#7A5AF8" dominant-baseline="central">上下文物化 · 状态/事件/时间/历史/因果 · 行动后状态回流（重建世界当前状态）</text>
+  <text x="60" y="314" font-size="12" fill="#7A5AF8" dominant-baseline="central">上下文物化 → ContextPack 组装（筛选/压缩/隔离）· TTL 保留 · 反投毒（重建世界当前状态）</text>
 </g>
 
 <g>
@@ -49,7 +50,7 @@
 <g>
   <rect x="40" y="546" width="600" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
   <text x="60" y="566" font-size="13" font-weight="500" fill="#085041" dominant-baseline="central">治理层（横切）</text>
-  <text x="60" y="586" font-size="12" fill="#0F6E56" dominant-baseline="central">反馈确认 · 固化人工审批 · Context 权限/审计 · 版本失效 · 定期 Lint</text>
+  <text x="60" y="586" font-size="12" fill="#0F6E56" dominant-baseline="central">分级授权 · 固化人工审批 · Context 审计 · 版本失效 · 四层评估（Outcome/Traj/Golden/回归）· 运行监控</text>
 </g>
 
 <text x="40" y="624" font-size="11" fill="#888780" dominant-baseline="central">执行细节（双路径 + LangGraph 编排 + 固化审批 + 认知闭环）见 pipeline.svg</text>
