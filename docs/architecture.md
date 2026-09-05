@@ -1,17 +1,14 @@
 # Wiki + Ontology 企业知识行动架构设计
 
-> 版本：v1.5（2026-09-03）
+> 版本：v1.6（2026-09-05）
 > 状态：架构设计稿 + 参考实现映射（实现见 [ontology-enterprise](https://github.com/qq450770953/ontology-enterprise)）
 > 读者对象：企业知识库 / AI Agent 平台的技术负责人、架构师、数据治理负责人
 >
-> **v1.5 增量说明**（2026-09-03，主要来源 yeasy《智能体 AI 权威指南》v1.4.0 §3.6 上下文工程与记忆护栏 / §7.3 轨迹分析 / §9.7 反模式 / §9.9 分级授权实证；其结论与 v1.4 方向互相验证，本版补齐运行时护栏细节与评估/治理精细化）：
-> - **H1 授权防放大**：新增 §6.9 记忆类型分类（preference/fact/policy/authorization；policy 只存引用不复制、authz 限 scope + 默认过期、放行规律仅作复审线索不自动升级）。
-> - **H2 上下文组装 ContextPack**：§3.2-5 / §4.3（持久化→筛选→压缩→隔离 + trace_id，LLM 只读组装后的包，对策 Context Rot / 中段丢失）。
-> - **H3 四层持续评估**：新增 §4.7（L1 Outcome / L2 Trajectory 轨迹三问 / L3 Golden Dataset 坏例回流 / L4 CI/CD 回归门禁）。
-> - **H4 分级自主 + 运行监控**：§4.4 升级为分级矩阵（简单/中/高/极高 × auto/supervised/gated × 里程碑检查点/实时告警/事后审查）；§6.7 自主度改为图级属性。
-> - **M1 图检索（多跳）**：语义层引入（§3 架构图标注）。**M2 TTL + 反投毒**：§3.2-6 记忆保留期与写入审查，§10 风险表新增。**M3 上下文重置**：§3.1-6 / §3.2-8 checkpoint→clear→reload。
-> - **L1 AGENTS.md**：新增面向 AI 会话的仓库操作规范。**L2 TCO 口径**：§7 全成本口径 + 轨迹三问。**L3 防确认偏差**：并入 §4.4（确认信号客观化）+ §8.1（策略/授权不随会话沉淀）。
-> - 设计原则新增 #6 "护栏先于自主放大"（§2）；§3 关键认知 +2 条；§5 组件表 +2 行；§11 路线图 9→11 步（四层评估基线先于固化审批）；§11.1 参考实现映射 +3 行；§12 补 yeasy 书目。
+> **v1.6 增量说明**（2026-09-05，主要来源：乌圆AI《自研 Ontology Engine 最小规格：5 大模块 + Action Engine 7 步链路》（微信公众号，2026-07-26）——其 Action Engine 治理链路与本架构"治理是灵魂"的判断互相验证，本版吸收 4 项工程级护栏细节；MVP 落地规划见 [research/mvp-plan.md](research/mvp-plan.md)）：
+> - **审计 6 字段 + append-only**：§9 审计可追溯升级——审计记录强制含 who / when / which rule(含版本) / which schema(含版本) / before-after / source 六字段，只许 INSERT（append-only）、独立于业务存储、与 schema 版本联动。
+> - **外部副作用 Saga 补偿**：§4.3-4 写入类动作引入 Saga 异步补偿（PENDING→COMMITTED/ROLLBACK，逆序补偿）替代 2PC；§10 新增对应风险行。
+> - **user edits always win**：§4.3-5 物化写入冲突策略——人工/Action 修改过的对象属性不被源系统再同步覆盖。
+> - **"数据规模 vs 决策治理"二分排序**：§11 路线图确立治理能力优先建齐、规模能力后置 Phase 2 的排序原则。
 
 ## 目录
 
@@ -181,8 +178,8 @@
 1. **关键词映射表**：把自然语言拆解为业务类型（区域、时间、指标、维度），匹配映射表得到候选业务对象。
 2. **Ontology 实体消歧**：将候选词解析为标准实体 ID、指标口径版本、期间（结合财务日历与关账状态）。多口径无法确定时询问用户。
 3. **工具映射与参数绑定**：依据工具目录（能力、参数 Schema、权限、风险）选择工具，按模板拼装 SQL 或绑定参数，执行类型、枚举、时间范围、权限校验。
-4. **各系统执行**：SQL / MCP / CLI 到各业务系统（数据库、数仓、CRM 等）查询真实数据。
-5. **上下文物化（Context Materialization）**：把异构系统返回按 Ontology 对象模型映射为 Context Object（对象 + 状态 + 事件 + 时间 + 来源），写入 Context 层——随后**组装为 ContextPack**（按意图与预算筛选相关对象、动态注入白名单工具、压缩历史快照、隔离租户边界），只把组装后的包交给下游（对策 Context Rot / 中段丢失，见 §3.2-5）。
+4. **各系统执行**：SQL / MCP / CLI 到各业务系统（数据库、数仓、CRM 等）查询真实数据。**写入类动作的外部副作用走 Saga 异步补偿**（状态机 PENDING → COMMITTED / ROLLBACK，失败按步骤逆序补偿），不采用 2PC——跨库 2PC 死锁多、可用性差；补偿逻辑与幂等键（idempotency-key）在动作注册时声明（§11.1 `action register` 已有 idempotency 字段）。
+5. **上下文物化（Context Materialization）**：把异构系统返回按 Ontology 对象模型映射为 Context Object（对象 + 状态 + 事件 + 时间 + 来源），写入 Context 层——随后**组装为 ContextPack**（按意图与预算筛选相关对象、动态注入白名单工具、压缩历史快照、隔离租户边界），只把组装后的包交给下游（对策 Context Rot / 中段丢失，见 §3.2-5）。物化写入遵守 **user edits always win** 冲突策略：人工或 Action 修改过的对象属性，源系统批量再同步时不覆盖——防止物化后的"世界状态"被上游同步回滚。
 6. **LLM 汇总解释**：读取组装后的 ContextPack（system / tools / memory / evidence + trace_id），输出排序、对比、归因、指标口径、数据状态与使用过的工具，而不是转述 JSON。
 
 > 执行原则：**LLM 只填参数、不自由造 SQL**；模板 SQL + 参数白名单校验（参数只能来自 Ontology 实体），从源头规避注入、越权与口径错配。
@@ -534,7 +531,7 @@ status: active
 - **Workflow 固化必须人工审批**：六步管线执行确认无误后，按执行轨迹构图为 Workflow 定义，**只有审批通过才允许更新 Wiki 固化流程注册表**；审批未过不产生任何命中路径，杜绝"错误图被自动固化"。
 - **Context 权限与审计**：Context Object 同样受 RBAC 约束（能看到实体不等于能读状态）；状态写入、确认升级、回流全部留痕。
 - **定期巡检（Lint）**：周期性检查孤立页面、冲突说法、失效链接、过期结论，workflow 的死分支、孤立节点与失效兜底策略，以及 **Context 状态漂移（与源系统不一致）**。
-- **审计可追溯**：每次查询保留原始问题、映射路径、SQL、系统返回、最终结论；每次固化保留审批人、审批意见与版本变更记录；每次 Context 更新保留来源与触发事件。
+- **审计可追溯（6 字段 + append-only）**：审计记录强制包含 **who（用户+角色）/ when（毫秒时间戳）/ which rule（规则 ID+版本）/ which schema（对象/动作 ID+版本）/ before-after（关键字段值变化）/ source（触发源系统）** 六字段；审计**只允许 INSERT、禁止 UPDATE/DELETE（append-only）**，独立于业务存储，并与 schema 版本联动（规则变更后旧审计仍可按版本解析——答得上"三个月前为什么这么改"）。每次查询保留原始问题、映射路径、SQL、系统返回、最终结论；每次固化保留审批人、审批意见与版本变更记录；每次 Context 更新保留来源与触发事件。
 - **记忆类型强制分类**：所有记忆写入先判定 `preference / fact / policy / authorization`；policy 只存引用、authorization 绑定 scope 并默认过期；检索时做作用域与时效校验（见 §6.9）。
 - **写入反投毒**：Context / Lesson 写入前审查——只接受 schema 白名单字段，拒绝指令性文本（提示注入），外部来源（网页 / 邮件 / 工单原文）与内部结构化状态**分区隔离存储**，防止"数据通道变指令通道"。
 - **分级授权矩阵**：按复杂度分档决定自主度与监控频率（见 §4.4 表）；运行期以实时异常告警 + 检查点 + 事后审查为主，**避免逐级审批疲劳化**。
@@ -560,8 +557,12 @@ status: active
 | 记忆投毒 | 外部文本以指令形式写入记忆，操纵后续行为 | 写入反投毒审查 + 外部来源分区隔离 + schema 白名单字段（§9） |
 | 评估盲区 | 只评答案对错，轨迹绕路 / 越权不可见 | 四层评估：L2 Trajectory 轨迹三问 + 坏例回流黄金集（§4.7） |
 | 上下文过期 | 状态记忆无保留期，Agent 用陈旧 Context 决策 | Context / Lesson 按类型 TTL 保留期 + 失效机制（§3.2-6） |
+| 外部副作用失败 | 跨系统写入类动作部分成功、部分失败，状态不一致 | Saga 异步补偿（PENDING→COMMITTED/ROLLBACK 逆序补偿）+ 幂等键，不采用 2PC（§4.3-4） |
+| 审计被篡改/残缺 | 审计与业务同库同生共死，或字段缺失答不上追溯问题 | 审计 append-only 独立存储 + 强制 6 字段 + 与 schema 版本联动（§9） |
 
 ## 11. 落地路线图
+
+> 排序原则（**数据规模 vs 决策治理**二分法，源自乌圆AI 自研引擎 MVP 实证）：**治理能力优先建齐**（审计 / 审批 / 权限 / Saga 补偿——"一个不能砍"的灵魂，差距靠设计对齐）；**数据规模能力后置 Phase 2**（图数据库、图检索、流式摄入——差距靠扩容补齐，不阻塞 MVP 闭环）。6 周 MVP 最小闭环规划见 [research/mvp-plan.md](research/mvp-plan.md)。
 
 1. **选场景**：经营分析 / 售后工单 / 采购询价（高频、数据清晰、结果可验证）。
 2. **最小实体集合**：区域、客户、产品、订单、指标、工具六类。
@@ -588,7 +589,7 @@ status: active
 | §4 未命中路径 | 六步管线执行 + 受治理动作（前置条件 / 权限 / 幂等） | `action register/run`（preconditions、required_role、idempotency-key、side_effect、risk） |
 | §3.2 上下文层 | 上下文物化、状态/事件/历史建模、因果链 | `state transition`（对象合法状态流转）+ `object`（关联实体）+ `method run`（物化校验确定性计算）+ `lineage`（Context 来源追溯） |
 | §4.5 固化 | 按执行轨迹构图 → 人工审批 → 注册 | 审批队列 + `state transition` 状态约束；`supersedes_id`/status 支持替代与失效 |
-| §9 安全与治理 | 权限校验、审计可追溯、数据血缘 | `policy add/check`（RBAC）、`audit query`（全操作审计）、`lineage trace`（血缘追溯） |
+| §9 安全与治理 | 权限校验、审计可追溯（6 字段 + append-only）、数据血缘 | `policy add/check`（RBAC）、`audit query`（全操作审计；**规划：audit 表升级 6 字段 + append-only**）、`lineage trace`（血缘追溯） |
 | §6.9 记忆类型分类 | preference/fact/policy/authorization、授权 scope+过期、策略引用不复制 | 规划：`memory add --type <preference|fact|policy-ref|authorization>` + 检索作用域校验（ontology-enterprise 待扩展） |
 | §4.7 四层评估 | Golden Dataset + Trajectory 三问 + CI 回归 | 规划：评测集（正负样例）脚本 + `audit query` 轨迹关联（ontology-enterprise 待扩展） |
 | §3.2-5 ContextPack | 上下文组装：筛选/压缩/隔离 + trace_id | 规划：ContextPack 组装器 + 预算策略（参考实现待补充） |
@@ -606,4 +607,5 @@ status: active
 - Shunyu Yao et al., *ReAct: Synergizing Reasoning and Acting in Language Models*
 - LangChain, *LangGraph*（有状态、图编排的 Agent 运行时）
 - Model Context Protocol, *Understanding MCP Servers*
+- 乌圆AI, *自研 Ontology Engine 最小规格：5 大模块 + Action Engine 7 步链路*（微信公众号, 2026-07-26）——**v1.6 主要优化来源**：Action Engine 7 步治理链路（Param Validate→Permission→Rule→Internal Mutate→Saga Side Effect→Audit→Rollback）、审计 6 字段 append-only、Saga 补偿替代 2PC、"数据规模 vs 决策治理"二分法（借鉴映射详见 [research/mvp-plan.md](research/mvp-plan.md)）
 - yeasy, *智能体 AI 权威指南（agentic_ai_guide）* v1.4.0, 2026-08, CC BY-NC-SA 4.0（GitHub 开源书）——**v1.5 主要优化来源**：其 §3.6 上下文工程与记忆护栏、§7.3 轨迹分析、§9.7 反模式（Dark Code / 渐进扩展 / 护栏先行 / TCO）、§9.9 分级授权实证
