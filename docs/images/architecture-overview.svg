@@ -1,9 +1,9 @@
 <svg viewBox="0 0 680 650" width="100%" xmlns="http://www.w3.org/2000/svg" role="img">
-<title>八层架构总览 v1.6</title>
+<title>八层架构总览 v1.7</title>
 <desc>入口路由层、知识层（LLM Wiki）、语义层（Ontology）、上下文层（Context，含 ContextPack 组装）、执行层、Workflow 编排层（LangGraph）、接入层与治理层（含分级授权、四层评估、运行监控）的分层架构</desc>
 
 <text x="40" y="46" font-size="14" font-weight="500" fill="#2C2C2A" dominant-baseline="central">八层架构总览</text>
-<text x="640" y="46" font-size="12" font-weight="500" fill="#888780" text-anchor="end" dominant-baseline="central">v1.6</text>
+<text x="640" y="46" font-size="12" font-weight="500" fill="#888780" text-anchor="end" dominant-baseline="central">v1.7</text>
 
 <g>
   <rect x="40" y="70" width="600" height="56" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>

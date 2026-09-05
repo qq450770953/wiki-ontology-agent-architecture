@@ -1,5 +1,5 @@
 <svg viewBox="0 0 680 790" width="100%" xmlns="http://www.w3.org/2000/svg" role="img">
-<title>完整链路：命中调用已固化 Workflow / 未命中六步管线 → 确认后构图固化 → 双闭环（v1.6）</title>
+<title>完整链路：命中调用已固化 Workflow / 未命中六步管线 → 确认后构图固化 → 双闭环（v1.7）</title>
 <desc>用户提问先查 Wiki 层固化流程注册表；命中则左侧直接调用已固化的 LangGraph Workflow，未命中则右侧执行六步自主管线（映射、消歧、工具绑定、执行【写入类副作用 Saga 补偿】、上下文物化→ContextPack 组装、汇总），正向反馈确认无误后按执行轨迹做 LangGraph 构图生成 Workflow 定义，经分级授权下的人工审批后更新 Wiki 连接（知识闭环）；同时确认后状态/结论回流更新 Context（认知闭环）；治理侧持续四层评估（Outcome/Trajectory/Golden/CI 回归）、运行监控与审计 6 字段 append-only</desc>
 <defs>
   <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
@@ -8,7 +8,7 @@
 </defs>
 
 <text x="60" y="40" font-size="14" font-weight="500" fill="#2C2C2A" dominant-baseline="central">完整链路：命中直接调用已固化 Workflow / 未命中六步管线 → 确认后构图固化 → 双闭环</text>
-<text x="640" y="40" font-size="12" font-weight="500" fill="#888780" text-anchor="end" dominant-baseline="central">v1.6</text>
+<text x="640" y="40" font-size="12" font-weight="500" fill="#888780" text-anchor="end" dominant-baseline="central">v1.7</text>
 
 <g>
   <rect x="200" y="66" width="280" height="44" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
@@ -43,7 +43,7 @@
 <g>
   <rect x="40" y="296" width="130" height="44" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
   <text x="105" y="312" font-size="13" font-weight="500" fill="#085041" text-anchor="middle" dominant-baseline="central">输出结果</text>
-  <text x="105" y="328" font-size="11" fill="#0F6E56" text-anchor="middle" dominant-baseline="central">低 token · 秒级</text>
+  <text x="105" y="328" font-size="11" fill="#0F6E56" text-anchor="middle" dominant-baseline="central">确定性节点不调用 LLM</text>
 </g>
 
 <g>

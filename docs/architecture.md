@@ -1,8 +1,10 @@
 # Wiki + Ontology 企业知识行动架构设计
 
-> 版本：v1.6（2026-09-05）
+> 版本：v1.7（2026-09-05）
 > 状态：架构设计稿 + 参考实现映射（实现见 [ontology-enterprise](https://github.com/qq450770953/ontology-enterprise)）
 > 读者对象：企业知识库 / AI Agent 平台的技术负责人、架构师、数据治理负责人
+>
+> **v1.7 增量说明**（2026-09-05，基于架构评审）：补充 Context 可信度闸门、Workflow 发布护栏、数据边界、Saga 恢复协议、字段级覆盖、事件时间语义、评估阈值、SLO 和审计完整性要求。
 >
 > **v1.6 增量说明**（2026-09-05，主要来源：乌圆AI《自研 Ontology Engine 最小规格：5 大模块 + Action Engine 7 步链路》（微信公众号，2026-07-26）——其 Action Engine 治理链路与本架构"治理是灵魂"的判断互相验证，本版吸收 4 项工程级护栏细节；MVP 落地规划见 [research/mvp-plan.md](research/mvp-plan.md)）：
 > - **审计 6 字段 + append-only**：§9 审计可追溯升级——审计记录强制含 who / when / which rule(含版本) / which schema(含版本) / before-after / source 六字段，只许 INSERT（append-only）、独立于业务存储、与 schema 版本联动。
@@ -48,7 +50,7 @@
 
 ## 2. 设计目标与原则
 
-1. **确定性优先**：已固化的高频问题直接调用 Wiki 注册的 LangGraph Workflow（确定性节点 0 token、秒级、可复现、可审计），LLM 只处理未命中的新问题。
+1. **确定性优先**：已固化的高频问题直接调用 Wiki 注册的 LangGraph Workflow（确定性节点不调用 LLM，延迟以 P50/P95 SLO 验证、可复现、可审计），LLM 只处理未命中的新问题。
 2. **记忆先于计算**：每个查询先查 Wiki 记忆层，命中即复用，避免重复"重新发现知识"。
 3. **知识复利 + 认知同步**：未命中路径**先执行六步验证**，确认无误后**按执行轨迹编译为可复用的 LangGraph Workflow，经人工审批后更新 Wiki 连接**（知识闭环）；同时**执行结论与新状态回流更新 Context**（认知闭环），让 Agent 始终基于企业当前状态决策。
 4. **上下文先于更多数据**：Agent 需要的不是更多数据，而是**正确、相关、实时、结构化、可验证的 Context**；执行结果先按 Ontology 物化为 Context Object，再交给 LLM 与下游决策。
@@ -120,7 +122,7 @@
 3. **状态与可观测性**：图实例持久化状态（running / waiting_input / success / failed / timeout），步骤级日志、耗时与 token 消耗全程可审计，支持断点续跑与人工介入（审批节点）。
 4. **护栏内置**：重试策略、超时熔断、降级（LLM 节点失败 → 落到确定性兜底）；所有节点统一受 RBAC 与审计约束。
 5. **分级自主与运行期监控**：按复杂度给 Workflow 声明自主度（auto / supervised / gated，见 §4.4）——低复杂度链可自主运行，高复杂度/高危变更保留里程碑 `human_approval` 检查点；运行期以实时异常告警 + 周期检查点 + 事后人工审查为主，而非每一步都等批准（避免审批疲劳化）。
-6. **上下文重置**：长周期任务支持 checkpoint → clear → reload 三步重置；同一工具连续 N 次无进展即触发重置或转人工，避免状态污染下硬撑（参考 §3.6.9）。
+6. **上下文重置**：长周期任务支持 checkpoint → clear → reload 三步重置；同一工具连续 N 次无进展即触发重置或转人工，避免状态污染下硬撑（参考 §3.2）。
 
 **固化机制（本层与 Wiki 的接口）**：六步管线执行成功并经正向反馈确认后，把本次**执行轨迹**编译为可复用的 LangGraph Workflow 定义，提交**人工审批**；审批通过后才允许写入 Wiki 的固化流程注册表并建立连接。**审批未过不写 Wiki，绝不绕过。**
 
@@ -132,13 +134,14 @@
 
 1. **上下文物化（Context Materialization）**：执行层从各系统取回的异构数据（结构化 / 半结构化 / 实时流 / 业务事件 / 指标变化），**先按 Ontology 对象模型映射为 Context Object**（对象 + 状态 + 事件 + 时间 + 来源），再交给 LLM 汇总与下游决策。Agent 收到的是结构化、可验证的 Context，而非原始 JSON。
 2. **状态建模**：每个 Context Object 记录当前状态（state）、事件日志（event_log）、历史快照（history）、因果链（causality）与影响传播（dependency），支撑"什么时候开始变化的、怎么演化的、为什么会变、影响什么"这类问题。
-3. **认知闭环（Context Update）**：Agent 行动 / 查询确认之后，**新数据、新事件、新状态回流更新 Context**——认知系统跟随真实世界演化，而非停留在执行时刻的快照。
+3. **认知闭环（Context Update）**：Agent 行动 / 查询确认之后，**新数据、新事件、新状态先写入候选区**；通过来源、权限和业务确认闸门后才提升为正式 Context。
 4. **状态查询**：Agent 决策前读取"当前世界状态"（正确、相关、实时、结构化、可验证），而非每次重新查询全部系统。
 
-5. **上下文组装（ContextPack）**：每次喂给 LLM 的上下文不是"物化结果全塞"，而是按四原语组装成强类型 **ContextPack**——① **持久化**：只从可信物化存储取；② **筛选**：按当前意图与预算裁剪相关对象与工具（**工具动态注入**白名单内工具，而非 100 个工具全进 prompt）；③ **压缩**：历史快照分级压缩、摘要化；④ **隔离**：租户 / 会话 / 任务隔离，防串扰。ContextPack 携带 `system / tools / memory / evidence` 四段 + 内置 `trace_id`，对策 **上下文腐烂（Context Rot）** 与 **中段丢失（Lost in the Middle）**（参考 §3.6.4/3.6.6）。
+5. **上下文组装（ContextPack）**：每次喂给 LLM 的上下文不是"物化结果全塞"，而是按四原语组装成强类型 **ContextPack**——① **持久化**：只从可信物化存储取；② **筛选**：按当前意图与预算裁剪相关对象与工具（**工具动态注入**白名单内工具，而非 100 个工具全进 prompt）；③ **压缩**：历史快照分级压缩、摘要化；④ **隔离**：租户 / 会话 / 任务隔离，防串扰。ContextPack 携带 `system / tools / memory / evidence` 四段 + 内置 `trace_id`，对策 **上下文腐烂（Context Rot）** 与 **中段丢失（Lost in the Middle）**。
 6. **记忆保留与反投毒**：Context / Lesson 带 **TTL 保留期**（按对象类型分级：高频状态短、稳定事实长）；写入前做**反注入审查**——只接受 schema 白名单字段，拒绝指令性文本（"忽略以上规则…"类提示注入），高危外部来源（网页 / 邮件 / 工单原文）与内部结构化状态分区隔离存储。
 7. **记忆类型分类（preference / fact / policy / authorization）**：记忆落库前先判定类型——`preference`（偏好）与 `fact`（事实）可沉淀；`policy`（策略）**只保留引用、不复制全文**（策略变更新旧一致）；`authorization`（授权）**必须绑定 scope（对象 + 动作 + 额度）+ 生效窗口，默认过期**；检索时做作用域与时效校验（详见 §6.9）。
 8. **上下文重置**：与 §3.1-6 一致，支持 checkpoint → clear → reload；长任务卡顿或会话切换时重置工作上下文，不靠无限压缩硬撑。
+9. **状态可信度与时间语义**：Context Object 强制记录 `tenant_id`、`subject`、`data_classification`、`policy_version`、`observed_at`、`received_at`、`effective_from`、`effective_to`、`computed_at`。状态区分 `observed`、`inferred`、`confirmed`、`retracted`；迟到事件按事件时间重放，冲突保留各源值与优先级。
 
 > 一句话：**Ontology 定义世界，Data 观察世界，Context 重建世界，Agent 理解世界并改变世界；改变之后的新状态又回流进 Context，形成企业认知闭环。**
 
@@ -169,7 +172,7 @@
 
 ### 4.2 命中路径（左侧）：直接调用已固化 Workflow
 
-从 Wiki 固化流程注册表取出对应记录，**加载其指向的 LangGraph Workflow 定义并直接执行**——不再重新编排，不重新消耗 LLM 的规划能力；执行基于入口读取的 Context 当前状态。纯确定性图（模板 SQL + 参数）为 **0 token、秒级响应**；含 LLM 节点（如汇总解释）的图消耗少量 token。结果可复现、全程可审计。固化条目越多，命中率越高，系统平均成本持续下降。
+从 Wiki 固化流程注册表取出对应记录，**加载其指向的 LangGraph Workflow 定义并直接执行**——不再重新编排，不重新消耗 LLM 的规划能力；执行基于入口读取的 Context 当前状态。纯确定性图（模板 SQL + 参数）不调用 LLM 节点；端到端延迟和含 LLM 节点的 token 消耗以 P50/P95 SLO 实测为准。结果可复现、全程可审计。固化条目越多，命中率越高，系统平均成本持续下降。
 
 ### 4.3 未命中路径（右侧）：六步自主执行管线
 
@@ -179,7 +182,8 @@
 2. **Ontology 实体消歧**：将候选词解析为标准实体 ID、指标口径版本、期间（结合财务日历与关账状态）。多口径无法确定时询问用户。
 3. **工具映射与参数绑定**：依据工具目录（能力、参数 Schema、权限、风险）选择工具，按模板拼装 SQL 或绑定参数，执行类型、枚举、时间范围、权限校验。
 4. **各系统执行**：SQL / MCP / CLI 到各业务系统（数据库、数仓、CRM 等）查询真实数据。**写入类动作的外部副作用走 Saga 异步补偿**（状态机 PENDING → COMMITTED / ROLLBACK，失败按步骤逆序补偿），不采用 2PC——跨库 2PC 死锁多、可用性差；补偿逻辑与幂等键（idempotency-key）在动作注册时声明（§11.1 `action register` 已有 idempotency 字段）。
-5. **上下文物化（Context Materialization）**：把异构系统返回按 Ontology 对象模型映射为 Context Object（对象 + 状态 + 事件 + 时间 + 来源），写入 Context 层——随后**组装为 ContextPack**（按意图与预算筛选相关对象、动态注入白名单工具、压缩历史快照、隔离租户边界），只把组装后的包交给下游（对策 Context Rot / 中段丢失，见 §3.2-5）。物化写入遵守 **user edits always win** 冲突策略：人工或 Action 修改过的对象属性，源系统批量再同步时不覆盖——防止物化后的"世界状态"被上游同步回滚。
+   Saga 必须持久化编排状态和 outbox 事件；外部调用超时、补偿失败或状态不明时进入重试/对账队列，超过上限转 `MANUAL_REVIEW`，不得静默标记成功。
+5. **上下文物化（Context Materialization）**：把异构系统返回按 Ontology 对象模型映射为 Context Object（对象 + 状态 + 事件 + 时间 + 来源），写入 Context 层——随后**组装为 ContextPack**（按意图与预算筛选相关对象、动态注入白名单工具、压缩历史快照、隔离租户边界），只把组装后的包交给下游（对策 Context Rot / 中段丢失，见 §3.2-5）。物化写入采用字段级覆盖：保留 `source_value` 与 `effective_value`，记录覆盖人、原因和过期时间；源系统新值进入待处理区，不被静默丢弃。
 6. **LLM 汇总解释**：读取组装后的 ContextPack（system / tools / memory / evidence + trace_id），输出排序、对比、归因、指标口径、数据状态与使用过的工具，而不是转述 JSON。
 
 > 执行原则：**LLM 只填参数、不自由造 SQL**；模板 SQL + 参数白名单校验（参数只能来自 Ontology 实体），从源头规避注入、越权与口径错配。
@@ -192,7 +196,7 @@
 - 结果与人工核对一致；
 - 评测用例通过。
 
-确认信号同时是**认知闭环的触发点**：确认的结论、归因与新状态回流更新 Context（见 4.6）。没有明确确认信号，默认不固化——**错误固化是这套机制最大的风险**。
+确认信号只允许触发候选状态写入；只有业务确认或来源事实校验通过后，结论、归因与新状态才可提升为正式 Context。用户点赞或未纠错只能作为反馈证据，不能单独升级事实状态。
 
 **审批从"二元等批"升级为"分级自主 + 运行期监控"**（参考 §9.7.4 / §9.9：逐级审批会疲劳化、形式化；经验用户的更优做法是提高自动批准率、但在里程碑检查点中断）：
 
@@ -216,6 +220,8 @@
 1. **LangGraph 动态构图**：LLM 依据本次执行轨迹起草 Workflow 定义（节点、边、参数绑定规则、兜底策略），提交审批队列。
 2. **人工审批**：治理层对定义做风险分级审核（见下表）。**新 Workflow 的固化属于高风险变更，必须强制人工审批**；审批意见可以是"通过"或"退回修改"。
 3. **更新 Wiki 连接**：审批通过后，把新 Workflow 注册进 Wiki 的**固化流程注册表**（记录问题范式 → Workflow ID → 版本 → 生效时间 → 负责人），旧版本标记"已替代"而不是删除。**审批未通过则不产生任何 Wiki 连接。**
+
+发布前必须冻结 Workflow、工具、Schema 和策略版本，并保存内容摘要；通过 DSL/schema 校验、权限/危险工具/循环/异常分支静态检查后，先灰度或影子运行，再允许扩大流量。注册表必须支持撤销、停用、回滚和运行中实例处置，不能仅依赖 `status` 字段切换。
 
 | 固化内容 | 写入位置 | 审核级别 |
 |---|---|---|
@@ -246,6 +252,8 @@
 | L2 Trajectory | 中间步骤是否绕路 / 循环 / 越权 / 走错工具 | **轨迹三问**：够不够快（步数）、够不够稳（重试/死循环）、够不够安全（越权/越界） | 执行层 + Workflow 编排层（§7） |
 | L3 Golden Dataset | 回归样本库持续扩充 | 生产 trace 中人工纠正的坏例子**回流黄金集**（含负向样例） | 评测集（§11 步骤 7） |
 | L4 CI/CD 回归 | 换模型 / 换 prompt / 换工具 / 改护栏后行为不退化 | 每次变更自动跑全量回归，失败即阻断发布 | 治理层门禁 |
+
+发布门槛至少包括：安全越权率为 0；Outcome、工具误选率、超时率、重复执行率和 Saga 补偿成功率相对基线不得超过预设回退阈值；任一安全指标或审计完整性检查失败即阻断发布。具体阈值在试点场景验收时固化。
 
 > 关键闭环：**线上发现的"答案对但轨迹绕 / 轨迹违规"必须回流 L3 黄金集**，否则同类坏轨迹会反复出现而无人察觉。
 
@@ -356,8 +364,15 @@ Workflow 编排层的核心数据模型——把节点、边、护栏策略与**
 workflow_id: wf.profit_region_period
 name: 区域期间毛利查询
 runtime: langgraph                   # 编排载体：LangGraph
+tool_version: mcp.finance.query@2026-09-05
+schema_version: profit.v3
+policy_version: finance.read.v2
+dependency_digest: sha256:<workflow-content-digest>
 status: approved                     # draft | pending_review | approved | rejected | superseded
 registered_in_wiki: true             # true = 已过审并写入 Wiki 固化流程注册表，入口路由层可命中
+release_state: canary                # draft | canary | active | paused | revoked
+canary_percent: 10
+rollback_target: wf.profit_region_period@1.1
 nodes:
   - id: kw_map                       # 关键词映射
     type: deterministic              # deterministic | llm | tool | condition | human_approval
@@ -405,8 +420,13 @@ approval:
 
 ```yaml
 context_id: ctx.asset.device_a.20260819T0845
+tenant_id: tenant.acme
+subject: user.u123
+data_classification: internal
+policy_version: asset.read.v2
 object: asset.device_a                 # 关联 Ontology 对象（对象模型由 Ontology 定义）
 state: abnormal                        # 当前状态（枚举，由类型 schema 约束）
+confidence_state: observed              # observed | inferred | confirmed | retracted
 state_since: 2026-08-19T08:15:00
 events:
   - {ts: 08:15, type: temp_rise, value: 87C, source: iot.sensor}
@@ -419,6 +439,11 @@ causality: causal.delivery_risk_20260819   # 关联因果链（见下）
 dependency: [order.o123, customer.c456]    # 影响传播：影响哪些业务对象
 valid_at: 2026-08-19T08:45:00
 provenance: {source: iot.gateway, query_id: exec_001}
+observed_at: 2026-08-19T08:44:58
+received_at: 2026-08-19T08:45:01
+effective_from: 2026-08-19T08:15:00
+effective_to: null
+computed_at: 2026-08-19T08:45:02
 ```
 
 因果链（结构化归因，替代 LLM 汇总时的"自由归因"）：
@@ -439,9 +464,11 @@ status: confirmed                       # confirmed | hypothesis（确认后升�
 - **确认升级**：因果链初始为 `hypothesis`，经 4.4 正向反馈确认后升级为 `confirmed` 并回流 Context——归因从"LLM 即兴发挥"变为"可审计、可复用、可追溯的状态资产"。
 - **与 Wiki / Lesson 的分工**：Wiki 存稳定知识与固化流程；Lesson 存操作经验；**Context 存当前状态与演化**——三者互补，构成"知识 + 经验 + 状态"的完整记忆体系。
 
+Context 状态闸门：`candidate → validated → confirmed → active → superseded / retracted`。`inferred` 只可用于低风险、可回滚决策；`confirmed` 必须有业务主体、证据或人工审核记录；`retracted` 会阻止依赖该状态的 Workflow 命中，并触发关联 Context、Lesson 和 Workflow 的重新评估。候选区默认不进入正式决策 ContextPack。
+
 ### 6.9 记忆类型分类与授权防放大
 
-**授权放大（Authorization Creep）是治理叙事里最危险的口子**：一次带时间/额度限定的临时批准（"这个月你可以自行批 15% 折扣"），若被会话沉淀压缩成"用户允许 15% 折扣"，就悄悄变成常设权限且**绕过审批**。对策：**记忆先分类、策略引用不复制、授权限 scope 且默认过期**（参考 §3.6.10）。
+**授权放大（Authorization Creep）是治理叙事里最危险的口子**：一次带时间/额度限定的临时批准（"这个月你可以自行批 15% 折扣"），若被会话沉淀压缩成"用户允许 15% 折扣"，就悄悄变成常设权限且**绕过审批**。对策：**记忆先分类、策略引用不复制、授权限 scope 且默认过期**（参考 §6.9）。
 
 ```yaml
 # preference 用户偏好（可沉淀为记忆）
@@ -532,10 +559,14 @@ status: active
 - **Context 权限与审计**：Context Object 同样受 RBAC 约束（能看到实体不等于能读状态）；状态写入、确认升级、回流全部留痕。
 - **定期巡检（Lint）**：周期性检查孤立页面、冲突说法、失效链接、过期结论，workflow 的死分支、孤立节点与失效兜底策略，以及 **Context 状态漂移（与源系统不一致）**。
 - **审计可追溯（6 字段 + append-only）**：审计记录强制包含 **who（用户+角色）/ when（毫秒时间戳）/ which rule（规则 ID+版本）/ which schema（对象/动作 ID+版本）/ before-after（关键字段值变化）/ source（触发源系统）** 六字段；审计**只允许 INSERT、禁止 UPDATE/DELETE（append-only）**，独立于业务存储，并与 schema 版本联动（规则变更后旧审计仍可按版本解析——答得上"三个月前为什么这么改"）。每次查询保留原始问题、映射路径、SQL、系统返回、最终结论；每次固化保留审批人、审批意见与版本变更记录；每次 Context 更新保留来源与触发事件。
+- **审计完整性**：审计写入主体与业务写入主体分离，关键记录使用哈希链或 WORM 存储；审计写失败时高风险动作失败或进入人工接管，日志和 Context 中的敏感字段按数据分类脱敏。
 - **记忆类型强制分类**：所有记忆写入先判定 `preference / fact / policy / authorization`；policy 只存引用、authorization 绑定 scope 并默认过期；检索时做作用域与时效校验（见 §6.9）。
 - **写入反投毒**：Context / Lesson 写入前审查——只接受 schema 白名单字段，拒绝指令性文本（提示注入），外部来源（网页 / 邮件 / 工单原文）与内部结构化状态**分区隔离存储**，防止"数据通道变指令通道"。
 - **分级授权矩阵**：按复杂度分档决定自主度与监控频率（见 §4.4 表）；运行期以实时异常告警 + 检查点 + 事后审查为主，**避免逐级审批疲劳化**。
 - **四层持续评估**：Outcome + Trajectory + Golden Dataset + CI/CD 回归（见 §4.7）；生产 trace 中人工纠正的坏例子必须回流黄金集，作为换模型 / 改 prompt / 换工具前的回归门禁。
+- **数据保留与隐私**：原始 SQL、工具返回和 Context 按数据分类加密、脱敏并设置保留期；审计记录与业务数据分离保存。删除请求只处理业务副本，审计保留最小必要字段并保留合规链路。
+- **幂等键规则**：幂等键至少绑定 `tenant_id + subject + workflow_id + action_id + target_object + operation + business_window`；重复请求返回原执行结果，补偿请求使用独立的补偿键，禁止依赖自然语言或时间戳单独去重。
+- **Workflow 自动失效**：Ontology/策略不兼容、指标口径失效、数据源结构变化、Golden 回归失败、安全指标越界或关键 Context 被撤回时，自动将 Workflow 标记 `paused` 或 `revoked`，阻断新实例并保留运行中实例的处置记录。
 
 ## 10. 风险与边界
 
@@ -579,6 +610,8 @@ status: active
 ## 11.1 参考实现映射
 
 本设计已有可运行参考实现 **[ontology-enterprise](https://github.com/qq450770953/ontology-enterprise)**（Python CLI + SQLite）。设计概念到实现能力的映射：
+
+> 证据状态说明：表中“实现能力”分为**已运行验证**、**静态实现待端到端验证**和**规划/待扩展**；参考实现映射不等于本架构全部能力已经具备。
 
 | 本设计章节 | 设计概念 | 实现能力 |
 |---|---|---|

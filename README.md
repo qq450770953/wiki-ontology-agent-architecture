@@ -8,7 +8,7 @@
 
 ## 核心设计
 
-1. **入口先查记忆（Wiki 层）+ Context 状态**：用户提问后先查**固化流程注册表**（映射表、SQL 模板、已审批 Workflow 的目录）决定"怎么执行"，同时读 **Context 当前状态**决定"基于什么现状执行"。命中 → 直接调用对应 LangGraph Workflow，低 token、秒级响应、结果可审计。
+1. **入口先查记忆（Wiki 层）+ Context 状态**：用户提问后先查**固化流程注册表**（映射表、SQL 模板、已审批 Workflow 的目录）决定"怎么执行"，同时读 **Context 当前状态**决定"基于什么现状执行"。命中 → 直接调用对应 LangGraph Workflow；确定性节点不调用 LLM，端到端延迟按 P50/P95 SLO 验证，结果可审计。
 2. **未命中先执行、后固化**：直接执行六步管线——关键词映射 → Ontology 实体消歧 → 工具映射与参数绑定 → 跨系统执行 → **上下文物化（写入 Context）** → 汇总解释，全程受治理与审计并保留执行轨迹；确认无误后再按轨迹做 LangGraph 构图固化。
 3. **执行成功后构图固化（须人工审批）**：按执行轨迹编译为可复用的 LangGraph Workflow 定义，提交**人工审批**；过审后才更新 Wiki 固化流程注册表——同类问题下次直接命中调用。**审批未过不写 Wiki。**
 4. **认知闭环（Context 回流）**：执行确认后，结论、归因与新状态回流更新 Context——后续 Agent 基于"世界当前状态"决策，而非执行时刻的快照。**Ontology 定义世界，Context 重建世界。**
@@ -16,6 +16,7 @@
 6. **上下文按预算组装（ContextPack）**：物化结果不直接全塞 prompt——按 持久化→筛选→压缩→隔离 组装成强类型 ContextPack（含 trace_id），工具动态注入白名单内子集，对策上下文腐烂与中段丢失。
 7. **评估先行、分级自主、监控兜底**：四层评估（Outcome / Trajectory / Golden Dataset / CI 回归）坏例回流黄金集；审批从"二元等批"升级为按复杂度分档的自主度 + 里程碑检查点 + 运行期监控；授权记忆限 scope 并默认过期（防授权放大）。
 8. **全程可治理**：指标口径、权限、版本、来源全部纳入 Ontology 与 Wiki 管理，错误固化有护栏，过期规则有失效机制；**审计 6 字段 + append-only**（who/when/rule/schema/before-after/source，只许 INSERT），**写入类动作外部副作用走 Saga 异步补偿**（不用 2PC），物化写入遵守 **user edits always win**。
+9. **状态与发布有闸门**：Context 区分 `observed / inferred / confirmed / retracted`，未确认结论先进入候选区；Workflow 发布冻结依赖版本，经静态检查、灰度和回滚机制后才扩大流量。架构文档同时区分已验证参考实现与规划能力。
 
 ## 架构总览
 
