@@ -17,6 +17,7 @@
 7. **评估先行、分级自主、监控兜底**：四层评估（Outcome / Trajectory / Golden Dataset / CI 回归）坏例回流黄金集；审批从"二元等批"升级为按复杂度分档的自主度 + 里程碑检查点 + 运行期监控；授权记忆限 scope 并默认过期（防授权放大）。
 8. **全程可治理**：指标口径、权限、版本、来源全部纳入 Ontology 与 Wiki 管理，错误固化有护栏，过期规则有失效机制；**审计 6 字段 + append-only**（who/when/rule/schema/before-after/source，只许 INSERT），**写入类动作外部副作用走 Saga 异步补偿**（不用 2PC），物化写入遵守 **user edits always win**。
 9. **状态与发布有闸门**：Context 区分 `observed / inferred / confirmed / retracted`，未确认结论先进入候选区；Workflow 发布冻结依赖版本，经静态检查、灰度和回滚机制后才扩大流量。架构文档同时区分已验证参考实现与规划能力。
+10. **运行时动态降级与适用域声明**：分级自主是部署基线而非静态配置——连续低置信度 / 评估指标劣化 / 异常告警超限自动收紧自主度一档，恢复后才逐档放宽；固化流程注册表条目强制含 `applicable_domain`（对象类型+状态范围+参数边界），命中执行前超域检查不通过自动降级 supervised；注册页带分类标签与使用评价回流（成功率/耗时/反馈），注册表从静态目录变活资产。
 
 ## 架构总览
 
@@ -24,7 +25,7 @@
 
 ![八层架构总览](docs/images/architecture-overview.svg)
 
-八层职责一句话：**入口路由层**决定走哪条路，**知识层（Wiki）**负责记忆与沉淀（维护固化流程注册表），**语义层（Ontology）**统一业务语言（定义世界结构），**上下文层（Context）**上下文物化并重建世界当前状态，**执行层**区分命中调用已固化 Workflow 与未命中六步管线执行，**Workflow 编排层（LangGraph）**固化时按执行轨迹构图、命中时加载已固化图执行，**接入层**访问真实系统（观察世界），**治理层**横切保障安全与质量（含固化人工审批、Context 审计）。
+八层职责一句话：**入口路由层**决定走哪条路，**知识层（Wiki）**负责记忆与沉淀（维护固化流程注册表），**语义层（Ontology）**统一业务语言（定义世界结构），**上下文层（Context）**上下文物化并重建世界当前状态，**执行层**区分命中调用已固化 Workflow 与未命中六步管线执行，**Workflow 编排层（LangGraph）**固化时按执行轨迹构图、命中时加载已固化图执行，**接入层**访问真实系统（观察世界），**治理层**横切保障安全与质量（含固化人工审批、动态自主度调节、适用域超域检查、Context 审计）。
 
 ### 完整链路（双路径 + 双闭环）
 
@@ -47,7 +48,7 @@ wiki-ontology-agent-architecture/
     ├── architecture.md          # 完整架构设计文档（核心交付物）
     ├── research/                # 技术选型/调研文档
     │   ├── semantica-evaluation.md   # Semantica 可行性评估 + PoC（2026-09-04）
-    │   └── mvp-plan.md               # 6 周 MVP 最小闭环规划（2026-09-05）
+    │   └── mvp-plan.md               # 6 周 MVP 最小闭环规划（v1.2，含试点四维评估矩阵）
     ├── references/             # 外部参考资料（PDF 等）
     └── images/
         ├── architecture-overview.svg   # 八层架构总览图
@@ -62,7 +63,8 @@ wiki-ontology-agent-architecture/
 - 想了解上下文层（Context / 上下文物化 / 认知闭环）：看 architecture.md 第 3.2 节与 6.8 节
 - 想评估 token 成本：看 architecture.md 第 7 章
 - 想了解经验沉淀（Lesson / 会话记忆协议）：看 architecture.md 第 6.6 节与 8.1 节
-- 想落地实施：看 architecture.md 第 11 章落地路线图
+- 想了解运行时安全（动态自主度调节 / 适用域声明 / 超域降级）：看 architecture.md 第 4.4、4.5、6.5、9 节
+- 想落地实施：看 architecture.md 第 11 章落地路线图 + [mvp-plan.md](docs/research/mvp-plan.md)（含试点四维评估矩阵）
 - 想参与贡献：读 [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## 参考实现（可运行）
@@ -86,7 +88,7 @@ wiki-ontology-agent-architecture/
 
 ## 设计来源
 
-本方案综合以下思想：Andrej Karpathy 的 LLM Wiki（知识编译与复利）、凯哥探数《AI时代的本体论》（Ontology 定义世界、Context 重建世界）、乌圆AI《自研 Ontology Engine 最小规格》（v1.6 工程护栏来源：Action Engine 7 步治理链路、审计 6 字段 append-only、Saga 补偿、数据规模 vs 决策治理二分法）、W3C OWL（本体语义）、Lewis 等人的 RAG（证据检索）、Yao 等人的 ReAct（推理-行动循环）、LangGraph（有状态图编排）、Model Context Protocol（工具接入），并将其组织为一条"记忆（Wiki 固化流程注册表）→ 语义（Ontology）→ 状态（Context）→ 编排（LangGraph Workflow）→ 审批 → 复利（知识闭环 + 认知闭环）"的完整链路。
+本方案综合以下思想：Andrej Karpathy 的 LLM Wiki（知识编译与复利）、凯哥探数《AI时代的本体论》（Ontology 定义世界、Context 重建世界）、乌圆AI《自研 Ontology Engine 最小规格》（v1.6 工程护栏来源：Action Engine 7 步治理链路、审计 6 字段 append-only、Saga 补偿、数据规模 vs 决策治理二分法）、《智能体赋能汽车研发设计白皮书》（v1.8 运行时安全来源：动态自主度调节、适用域声明与超域降级、技能资产治理、场景四维评估矩阵）、W3C OWL（本体语义）、Lewis 等人的 RAG（证据检索）、Yao 等人的 ReAct（推理-行动循环）、LangGraph（有状态图编排）、Model Context Protocol（工具接入），并将其组织为一条"记忆（Wiki 固化流程注册表）→ 语义（Ontology）→ 状态（Context）→ 编排（LangGraph Workflow）→ 审批 → 复利（知识闭环 + 认知闭环）"的完整链路。
 
 ## License
 
