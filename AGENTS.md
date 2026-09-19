@@ -52,6 +52,9 @@ CHROME="C:/Program Files/Google/Chrome/Application/chrome.exe"
 
 - 上传流程：`create_media` → COS v1 签名 PUT → `add_knowledge`。
 - **COS PUT host 用标准域名 `bucket-appid.cos.<region>.myqcloud.com`，不要用 custom_domain**（历史踩坑）。
+- **COS v1 签名两个坑（2026-09-19 实测，markdown 卡片上传）**：
+  1. HttpString 中 header 值必须 URL 编码（如 `content-type=text%2Fmarkdown`），否则 403 SignatureDoesNotMatch——服务端报错里的 FormatString 会直接给出期望形态，可对照定位；
+  2. **`x-cos-security-token` 必须纳入 `q-header-list` 一并签名**（与标准 COS STS 惯例不同），且请求头带上同值；仅做请求头不签名会 403。
 - 知识库 ID：`001a6fd997006efe`（"艾斯的知识库"）。
 - 密钥等敏感值走临时注入，**不落盘、不展示**。
 
