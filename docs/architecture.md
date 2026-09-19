@@ -1,8 +1,13 @@
 # Wiki + Ontology 企业知识行动架构设计
 
-> 版本：v1.8（2026-09-18）
+> 版本：v1.9（2026-09-19）
 > 状态：架构设计稿 + 参考实现映射（实现见 [ontology-enterprise](https://github.com/qq450770953/ontology-enterprise)）
 > 读者对象：企业知识库 / AI Agent 平台的技术负责人、架构师、数据治理负责人
+>
+> **v1.9 增量说明**（2026-09-19，主要来源：AI手抄笔记《Ontology和知识图谱到底是什么关系？》（微信公众号，2026-09-15）——概念辨析文章，与本架构"互相印证"为主，吸收 2 项增量 + 1 项可选规划，对照分析详见 [research/ontology-kg-relationship-notes.md](research/ontology-kg-relationship-notes.md)）：
+> - **类型层级继承（H1）**：§6.2 类型定义支持 `subclass_of`，`object query` / `alias resolve` 查询前按类型闭包展开（子类型成员隐含可见）——纯应用层递归实现，不引入 OWL Reasoner；新增 subclass_of 属 schema 变更，走本体变更审批，建树时环检测拒绝。缓解 §10"映射表爆炸"风险。
+> - **图数据库推理边界（H2）**：§10 新增"图库推理误用"风险行；§11 明确 Phase 2 引入 Neo4j 等 Property Graph 时只承担存查与图算法，继承/规则推理必须由应用层承担——存了语义边 ≠ 具备推理能力。
+> - **互操作出口（L，可选）**：§11.1 新增 RDF/OWL 导出规划（`ontology export --format owl/turtle`），不做 RDF 运行时，按外部互操作需求启动。
 >
 > **v1.8 增量说明**（2026-09-18，主要来源：《智能体赋能汽车研发设计白皮书——从工具辅助到智能原生》（2026，中国汽研牵头、一汽/长安/理想等 15 家企业联合发布）——行业方法论与本架构"互相验证"，本版吸收 2 项高优先级运行时安全机制 + 3 项增强点）：
 > - **运行时动态降级（H1）**：§4.4 分级自主从静态部署基线升级为运行时反馈回路——连续 N 次低置信度 / 评估指标越回退阈值 / 异常告警超限 → 自动收紧自主度一档并告警；恢复后才逐档放宽（§4.7 评估结果驱动）。
@@ -313,6 +318,12 @@ source: 2026版销售组织架构
 status: verified
 ```
 
+**类型层级与继承展开（v1.9）**：类型定义（`type define`）支持声明 `subclass_of`（如 `DeviceFault ⊆ Fault`、`GrossMargin ⊆ BusinessMetric`），形成类型树；`object query` / `alias resolve` 查询前先做**类型闭包展开**——目标类型的全部子类型成员隐含可见，无需逐类型枚举（缓解 §10 映射表爆炸）。设计约束：
+
+- **继承展开是纯应用层递归**（类型树闭包），不引入 OWL Reasoner——回答"这一类包含哪些子类/成员"即可，不做表达逻辑推理（对照 §10"Ontology 过度扩张"风险）。
+- **新增 `subclass_of` 属 schema 变更**，与指标口径同级，走本体变更审批闸口；建树时环检测（A⊆B⊆A）直接拒绝。
+- 图数据库（Phase 2）中的 `SUBCLASS_OF` 语义边只承担存查，不自动产生继承推理（见 §10"图库推理误用"）。
+
 ### 6.3 指标实体（含口径版本）
 
 ```yaml
@@ -606,6 +617,7 @@ status: active
 | Context 膨胀 | 无节制物化导致状态仓库膨胀、查询变慢 | 只物化"决策所需的最小对象集合"；历史快照分级压缩归档；TTL 保留期 |
 | 跨系统口径不一致 | 同一指标多系统定义不同 | Ontology 指定指标版本后统一下发 |
 | Ontology 过度扩张 | 长期停留在字段讨论 | 一个真实任务驱动最小实体集合 |
+| 图库推理误用 | Phase 2 引入 Neo4j 等 Property Graph 后，误以为存了 `SUBCLASS_OF` 等语义边即自动具备继承/规则推理能力（Property Graph 不做 OWL 推理） | 继承展开与规则推理由应用层承担（类型闭包 §6.2 / 规则引擎），图库只负责存查与图算法（§11 Phase 2 护栏） |
 | 授权放大 | 临时放行被压缩成常设权限，绕过审批 | 记忆类型分类：authorization 限 scope + 默认过期；放行规律只作复审线索（§6.9） |
 | 审批疲劳 | 逐级审批形式化，高危变更被"习惯性批准" | 分级自主 + 里程碑检查 + 运行监控 + 事后审查（§4.4） |
 | 上下文腐烂 / 中段丢失 | 物化结果全塞 prompt，长上下文稀释关键信息 | ContextPack 四原语组装：持久化→筛选→压缩→隔离（§3.2-5） |
@@ -617,7 +629,7 @@ status: active
 
 ## 11. 落地路线图
 
-> 排序原则（**数据规模 vs 决策治理**二分法，源自乌圆AI 自研引擎 MVP 实证）：**治理能力优先建齐**（审计 / 审批 / 权限 / Saga 补偿——"一个不能砍"的灵魂，差距靠设计对齐）；**数据规模能力后置 Phase 2**（图数据库、图检索、流式摄入——差距靠扩容补齐，不阻塞 MVP 闭环）。6 周 MVP 最小闭环规划见 [research/mvp-plan.md](research/mvp-plan.md)。
+> 排序原则（**数据规模 vs 决策治理**二分法，源自乌圆AI 自研引擎 MVP 实证）：**治理能力优先建齐**（审计 / 审批 / 权限 / Saga 补偿——"一个不能砍"的灵魂，差距靠设计对齐）；**数据规模能力后置 Phase 2**（图数据库、图检索、流式摄入——差距靠扩容补齐，不阻塞 MVP 闭环）。Phase 2 引入图数据库时明确推理边界：Neo4j 等 Property Graph 不自动做继承/规则推理，`SUBCLASS_OF` 等语义边只承担存查与图算法，继承展开由应用层承担（§6.2 类型闭包 / §10"图库推理误用"）。6 周 MVP 最小闭环规划见 [research/mvp-plan.md](research/mvp-plan.md)。
 
 1. **选场景**：经营分析 / 售后工单 / 采购询价（高频、数据清晰、结果可验证）。
 2. **最小实体集合**：区域、客户、产品、订单、指标、工具六类。
@@ -640,6 +652,8 @@ status: active
 | 本设计章节 | 设计概念 | 实现能力 |
 |---|---|---|
 | §3 语义层 | Ontology 实体（唯一 ID / 别名 / 关系 / 口径版本 / 生效时间 / 权限约束） | `type define`（schema：required/enum/type）、`object create/get/query/update/delete`、`object alias-add/resolve`（namespace 消歧）、实体 version/effective_from/effective_to |
+| §6.2 类型层级 | 类型继承（`subclass_of`）+ 查询类型闭包展开 | 规划：`type define` 增 `subclass_of` 字段 + 建树环检测；`object query` 按类型闭包展开（ontology-enterprise 待扩展） |
+| 互操作出口（可选） | RDF/OWL 导出（标准本体文件供外部系统消费，不做 RDF 运行时） | 规划：`ontology export --format owl/turtle`（按外部互操作需求启动；Semantica OWLGenerator 已实测可行，见 [research/semantica-evaluation.md](research/semantica-evaluation.md)） |
 | §3 语义层 | 关系与约束（from/to 类型、基数、环） | `link relate/related`（cardinality=many_to_one、acyclic 环检测） |
 | §4 命中路径 | 直接调用已固化 Workflow（注册表指向） | `state transition`（状态机合法流转）+ `method run`（白名单沙箱确定性计算），配合 LangGraph 加载已注册图 |
 | §3.1 Workflow 编排层 | 固化按执行轨迹构图；命中加载已固化图；状态/重试/降级/审计 | LangGraph（图编排、状态持久化、断点续跑）；ontology-enterprise `method run`（确定性节点沙箱）、`action run`（前置条件 / 幂等 / 副作用 / risk）、`audit`（步骤级审计） |
@@ -665,5 +679,6 @@ status: active
 - LangChain, *LangGraph*（有状态、图编排的 Agent 运行时）
 - Model Context Protocol, *Understanding MCP Servers*
 - 乌圆AI, *自研 Ontology Engine 最小规格：5 大模块 + Action Engine 7 步链路*（微信公众号, 2026-07-26）——**v1.6 主要优化来源**：Action Engine 7 步治理链路（Param Validate→Permission→Rule→Internal Mutate→Saga Side Effect→Audit→Rollback）、审计 6 字段 append-only、Saga 补偿替代 2PC、"数据规模 vs 决策治理"二分法（借鉴映射详见 [research/mvp-plan.md](research/mvp-plan.md)）
+- AI手抄笔记, *Ontology和知识图谱到底是什么关系？*（微信公众号, 2026-09-15）——**v1.9 主要优化来源**：Ontology=Schema / KG=Data 分工与"Neo4j 存语义边但不自动做 OWL 推理"警示，对应本版类型层级继承（§6.2）与图库推理边界护栏（§10/§11）；完整对照分析见 [research/ontology-kg-relationship-notes.md](research/ontology-kg-relationship-notes.md)
 - yeasy, *智能体 AI 权威指南（agentic_ai_guide）* v1.4.0, 2026-08, CC BY-NC-SA 4.0（GitHub 开源书）——**v1.5 主要优化来源**：其 §3.6 上下文工程与记忆护栏、§7.3 轨迹分析、§9.7 反模式（Dark Code / 渐进扩展 / 护栏先行 / TCO）、§9.9 分级授权实证
 - 《智能体赋能汽车研发设计白皮书——从工具辅助到智能原生》（2026，中国汽研牵头、一汽/长安/理想等 15 家企业联合发布）——**v1.8 主要优化来源**：运行时动态降级（§4.4）、适用域声明与超域降级（§4.5/§6.5/§9）、技能资产治理（§6.5）、场景四维评估矩阵与数据治理先行（[mvp-plan](research/mvp-plan.md) v1.2）、A/B 对照测试（§4.7）、token 计量"智能量"展望（§7）；其"通用模型/垂域模型/机理模型三层分工"印证本架构"确定性节点不调用 LLM"原则

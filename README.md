@@ -48,7 +48,9 @@ wiki-ontology-agent-architecture/
     ├── architecture.md          # 完整架构设计文档（核心交付物）
     ├── research/                # 技术选型/调研文档
     │   ├── semantica-evaluation.md   # Semantica 可行性评估 + PoC（2026-09-04）
-    │   └── mvp-plan.md               # 6 周 MVP 最小闭环规划（v1.2，含试点四维评估矩阵）
+    │   ├── mvp-plan.md               # 6 周 MVP 最小闭环规划（v1.2，含试点四维评估矩阵）
+    │   ├── ontology-construction-design.md   # 本体构建工作台评估与设计（2026-09-19）
+    │   └── ontology-kg-relationship-notes.md # Ontology 与知识图谱关系对照分析（2026-09-19）
     ├── references/             # 外部参考资料（PDF 等）
     └── images/
         ├── architecture-overview.svg   # 八层架构总览图
