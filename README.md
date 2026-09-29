@@ -8,6 +8,8 @@
 
 ## 核心设计
 
+当前设计版本 **v1.10（2026-09-29）**。新增任务控制契约：TaskRun、完成证据、Context Manifest、动作恢复和独立验证集，见 architecture.md §3.3；[阿里云手册总结与对照](docs/research/aliyun-agent-handbook-notes.md)。
+
 1. **入口先查记忆（Wiki 层）+ Context 状态**：用户提问后先查**固化流程注册表**（映射表、SQL 模板、已审批 Workflow 的目录）决定"怎么执行"，同时读 **Context 当前状态**决定"基于什么现状执行"。命中 → 直接调用对应 LangGraph Workflow；确定性节点不调用 LLM，端到端延迟按 P50/P95 SLO 验证，结果可审计。
 2. **未命中先执行、后固化**：直接执行六步管线——关键词映射 → Ontology 实体消歧 → 工具映射与参数绑定 → 跨系统执行 → **上下文物化（写入 Context）** → 汇总解释，全程受治理与审计并保留执行轨迹；确认无误后再按轨迹做 LangGraph 构图固化。
 3. **执行成功后构图固化（须人工审批）**：按执行轨迹编译为可复用的 LangGraph Workflow 定义，提交**人工审批**；过审后才更新 Wiki 固化流程注册表——同类问题下次直接命中调用。**审批未过不写 Wiki。**
@@ -47,6 +49,7 @@ wiki-ontology-agent-architecture/
 └── docs/
     ├── architecture.md          # 完整架构设计文档（核心交付物）
     ├── research/                # 技术选型/调研文档
+    │   ├── aliyun-agent-handbook-notes.md # 阿里云手册总结、阅读边界与 v1.10 对照
     │   ├── semantica-evaluation.md   # Semantica 可行性评估 + PoC（2026-09-04）
     │   ├── mvp-plan.md               # 6 周 MVP 最小闭环规划（v1.2，含试点四维评估矩阵）
     │   ├── ontology-construction-design.md   # 本体构建工作台评估与设计（2026-09-19）

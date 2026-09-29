@@ -1,6 +1,7 @@
 # Wiki + Ontology 企业知识行动架构设计
 
-> 版本：v1.9（2026-09-19）
+> 版本：v1.10（2026-09-29）
+> **v1.10 增量说明**：基于阿里云 AI Agent Handbook 第 4、5、19、21、23 章，补充 §3.3 任务控制契约：TaskRun 完成证据、Context Manifest、动作恢复、轨迹关联与独立评估。全部为设计要求，参考实现尚未验证；[阅读边界与来源](research/aliyun-agent-handbook-notes.md)。
 > 状态：架构设计稿 + 参考实现映射（实现见 [ontology-enterprise](https://github.com/qq450770953/ontology-enterprise)）
 > 读者对象：企业知识库 / AI Agent 平台的技术负责人、架构师、数据治理负责人
 >
@@ -156,6 +157,50 @@
 9. **状态可信度与时间语义**：Context Object 强制记录 `tenant_id`、`subject`、`data_classification`、`policy_version`、`observed_at`、`received_at`、`effective_from`、`effective_to`、`computed_at`。状态区分 `observed`、`inferred`、`confirmed`、`retracted`；迟到事件按事件时间重放，冲突保留各源值与优先级。
 
 > 一句话：**Ontology 定义世界，Data 观察世界，Context 重建世界，Agent 理解世界并改变世界；改变之后的新状态又回流进 Context，形成企业认知闭环。**
+
+### 3.3 任务控制契约（v1.10）
+
+本节补齐八层之间的运行契约，不新增部署层。设计依据为 §12 阿里云手册第 4、5、19、21、23 章，字段和验收门槛为本项目裁剪方案。
+
+**职责归属**：编排层持有 TaskRun；Context 层持有业务状态与 ContextPack；接入层执行动作；治理层负责授权与发布门禁。未命中路径的“先执行后构图”仅表示事后生成可复用 Workflow；第一次探索执行仍须具备状态记录、预算和验证循环。
+
+| 对象 | 权威内容 | 不能替代 |
+|---|---|---|
+| TaskRun | 目标、阶段、等待原因、预算、审批、交付物、完成证据 | 业务设备/订单状态 |
+| Context Object | 带来源、有效时间的业务状态或推断 | 任务进度、授权记录 |
+| Event Log / Snapshot | 有序事件 / 某版本聚合视图 | 安全恢复位置 |
+| Checkpoint | 状态版本、事件游标、待完成动作、环境摘要 | 外部动作成功证明 |
+| Artifact | 可寻址交付物、内容摘要、所有者、权限和保留期 | 自然语言完成声明 |
+
+**TaskRun 状态机**：created → running → verifying → completed；running 可转 waiting_input、waiting_approval、waiting_event 或 paused，条件满足后回到 running；不可恢复错误或预算耗尽进入 failed，显式取消进入 cancelled。waiting 不算失败，终态必须保存未完成项。恢复先重新检查身份、策略有效期、工作区版本和动作结果，再决定重试。旧图实例的 success 仅代表节点执行结束，不直接映射业务 completed。
+
+```yaml
+task_id: task.fault.example
+session_id: session.example
+tenant_id: tenant.example
+state: verifying
+state_version: 8
+goal: 生成经确认的处置建议并回写工单
+workflow_ref: wf.fault@1
+checkpoint: {event_cursor: 18, pending_action: action.ticket.write}
+budget: {max_steps: 30, max_seconds: 600, max_tokens: 20000}
+completion_evidence:
+  - {kind: business_receipt, artifact_id: receipt.ticket.example}
+  - {kind: verification, artifact_id: report.ticket.readback}
+remaining_items: []
+```
+
+预算数值是 MVP 初始设计值，须由试点负责人校准。任务结束时可以将模型的最终汇总作为完成证据，原因是经过结构化 ContextPack 约束的汇总与外部业务回执等价；因此无需每次重复读回业务状态。
+
+**Context Manifest（输入清单）**：每轮保存 task_id、call_id、context_policy_version，以及实际纳入的 source_id/version、scope、trust_level、token_count、裁剪原因和 Artifact 引用。处理顺序为身份/作用域过滤 → 相关性排序 → 预算裁剪 → 组装；未授权内容不得发送给重排器。大结果卸载后保留稳定引用、摘要和哈希，读取引用仍需鉴权。压缩前先提交审批、动作回执和任务状态，摘要不能成为授权真源。
+
+**Action 契约与恢复**：输入需包含 task_id、action_id、租户与执行主体、规范化参数摘要、幂等键、审批引用、超时和可补偿性；输出区分 accepted、running、succeeded、failed、unknown，并携带外部操作 ID、结果引用和错误分类。accepted 只能进入 waiting_event；unknown 先查外部业务状态，禁止盲目重放。取消停止新动作，对已发生副作用保留回执并按 Saga 补偿。幂等键以稳定业务操作 ID 加租户和动作版本组成，同键不同参数拒绝；执行者和 task_id 作为审计关联，跨任务重试保持业务操作 ID 不变。
+
+**轨迹与实验**：task_id 关联多次 call_id/trace_id，parent_task_id 仅表示显式委派关系，不按时间接近合并任务。日志先脱敏，再形成带来源、输入版本、动作、结果及覆盖缺口的 Trajectory。坏例先进入候选集，经业务负责人补齐期望状态和 rubric 后发布。调优集与独立验证集按业务任务分组去重，固定模型/Prompt/工具/Context Policy/数据集版本；独立集被用于调参后必须重新划分。
+
+**经验受控发布**：Lesson 可自动进入候选区，但正式召回须验证来源、适用域和结果。稳定方法可升级为 Skill、SQL 或 Workflow，经回归和责任人审批再发布。变更 Context Policy、检索规则或工具同样触发回归；经验不改变动作授权。多 Agent 为按需扩展，委派必须声明目标、权限、预算、结果格式和父任务验收责任。
+
+**MVP 验收**：固定不少于 20 个测试场景，覆盖正常、越权、过期上下文、审批拒绝、结果未知和重复回调；这些样本不能证明生产错误率为零。安全负例与审计字段检查全部通过；外部动作结果未知时不重复提交；移除完成证据后不得进入 completed；优化前后使用同一冻结验证集，报告成功数/总数、P50/P95 时延和每任务成本，任一安全用例失败阻断发布。质量目标暂定不少于 18/20，作为工程验收起点，不是生产承诺。
 
 ## 4. 核心流程：双路径 + 双闭环
 
@@ -669,6 +714,8 @@ status: active
 > 说明：**LangGraph 承担 Workflow 编排层（图编排、状态、重试、断点续跑）；ontology-enterprise 承担语义层与治理底座**（实体、模板、受治理动作、RBAC、审计），二者组合即为可运行底座。"入口路由层（Wiki 索引匹配 / 固化流程注册表）"与"接入层（MCP/CLI/API 真实系统）"需按 §11 路线图在企业场景中接入。
 
 ## 12. 参考
+
+- 阿里云，AI Agent Handbook，读取日期 2026-09-29，固定提交 `1f34b541468ba059ef1732bd1bb64940c4812936`。本版采用第 4 章任务/完成证据、第 5 章 Context/状态契约、第 19 章轨迹、第 21 章黄金集、第 23 章受控自进化；[逐章链接与项目对照](research/aliyun-agent-handbook-notes.md)。本文运行契约为设计推导，未验证厂商 SDK 或参考实现运行行为。
 
 - Andrej Karpathy, *LLM Wiki*（GitHub Gist, 2026-04）
 - 凯哥探数, *AI时代的本体论：本体不是终点，实时上下文才是企业认知的生命线*（微信公众号, 2026-08）
