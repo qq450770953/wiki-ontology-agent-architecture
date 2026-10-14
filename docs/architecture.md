@@ -1,9 +1,15 @@
 # Wiki + Ontology 企业知识行动架构设计
 
-> 版本：v1.10（2026-09-29）
-> **v1.10 增量说明**：基于阿里云 AI Agent Handbook 第 4、5、19、21、23 章，补充 §3.3 任务控制契约：TaskRun 完成证据、Context Manifest、动作恢复、轨迹关联与独立评估。全部为设计要求，参考实现尚未验证；[阅读边界与来源](research/aliyun-agent-handbook-notes.md)。
+> 版本：v2.0（2026-10-14）
 > 状态：架构设计稿 + 参考实现映射（实现见 [ontology-enterprise](https://github.com/qq450770953/ontology-enterprise)）
 > 读者对象：企业知识库 / AI Agent 平台的技术负责人、架构师、数据治理负责人
+>
+> **v2.0 增量说明**（2026-10-14，新增企业系统接入层 Connector Runtime 设计；完整方案见 [research/connector-runtime-design.md](research/connector-runtime-design.md)）：
+> - 接入层从协议入口升级为独立的 Connector Runtime，统一承载连接器路由、凭据引用、参数校验、限流、超时、重试、熔断、幂等、结果规范化、健康检查、审计与血缘；ERP/MES/WMS 厂商差异收敛在 REST/SQL/File/Event Adapter、映射和工具定义中。
+> - 增加统一 Tool Contract 与 Raw Result → Canonical Result → Context Object 三层结果边界；LLM 只能绑定白名单参数，不能自由生成 SQL、API URL 或写入动作。
+> - 明确 ERP/MES/WMS 的读写分级、指标注册表、数据源对账和连接器验收标准；MVP 先做 MES 单协议只读查询，CDC/事件、多源自动合并仍后置 Phase 2。
+>
+> **v1.10 增量说明**（2026-09-29，来源：阿里云 AI Agent Handbook 第 4、5、19、21、23 章）：补充 §3.3 任务控制契约：TaskRun 完成证据、Context Manifest、动作恢复、轨迹关联与独立评估。全部为设计要求，参考实现尚未验证；[阅读边界与来源](research/aliyun-agent-handbook-notes.md)。
 >
 > **v1.9 增量说明**（2026-09-19，主要来源：AI手抄笔记《Ontology和知识图谱到底是什么关系？》（微信公众号，2026-09-15）——概念辨析文章，与本架构"互相印证"为主，吸收 2 项增量 + 1 项可选规划，对照分析详见 [research/ontology-kg-relationship-notes.md](research/ontology-kg-relationship-notes.md)）：
 > - **类型层级继承（H1）**：§6.2 类型定义支持 `subclass_of`，`object query` / `alias resolve` 查询前按类型闭包展开（子类型成员隐含可见）——纯应用层递归实现，不引入 OWL Reasoner；新增 subclass_of 属 schema 变更，走本体变更审批，建树时环检测拒绝。缓解 §10"映射表爆炸"风险。
@@ -201,6 +207,13 @@ remaining_items: []
 **经验受控发布**：Lesson 可自动进入候选区，但正式召回须验证来源、适用域和结果。稳定方法可升级为 Skill、SQL 或 Workflow，经回归和责任人审批再发布。变更 Context Policy、检索规则或工具同样触发回归；经验不改变动作授权。多 Agent 为按需扩展，委派必须声明目标、权限、预算、结果格式和父任务验收责任。
 
 **MVP 验收**：固定不少于 20 个测试场景，覆盖正常、越权、过期上下文、审批拒绝、结果未知和重复回调；这些样本不能证明生产错误率为零。安全负例与审计字段检查全部通过；外部动作结果未知时不重复提交；移除完成证据后不得进入 completed；优化前后使用同一冻结验证集，报告成功数/总数、P50/P95 时延和每任务成本，任一安全用例失败阻断发布。质量目标暂定不少于 18/20，作为工程验收起点，不是生产承诺。
+### 3.4 企业系统接入层（Connector Runtime）
+
+接入层不再只是 MCP / CLI / API / SQL 的协议入口，而是位于执行层与真实业务系统之间的独立 **Connector Runtime**。上层 Agent 与 LangGraph 只调用统一 Tool Contract，不感知 ERP、MES、WMS 的厂商协议；厂商差异由 REST / WebService、只读 SQL、文件 / 中间表和后续 Event / CDC Adapter 收敛。连接器运行时统一处理连接、凭据引用、参数 Schema、权限策略、限流、超时、重试、熔断、幂等、结果规范化、健康检查、审计与血缘。
+
+数据返回遵循 **Raw Result → Canonical Result → Ontology Mapping → Context Object** 三层边界：原始结果用于受控追溯，标准结果统一业务对象，只有经过 Ontology 映射和可信度校验后才物化进 Context。业务明细不写入 Wiki；指标通过版本化 Metric Registry 做确定性计算，LLM 只解释已计算结果。
+
+连接器设计、Tool Contract、结果模型、读写分级、MVP 和验收标准详见 [research/connector-runtime-design.md](research/connector-runtime-design.md)。
 
 ## 4. 核心流程：双路径 + 双闭环
 

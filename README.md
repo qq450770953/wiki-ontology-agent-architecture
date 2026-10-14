@@ -8,7 +8,7 @@
 
 ## 核心设计
 
-当前设计版本 **v1.10（2026-09-29）**。新增任务控制契约：TaskRun、完成证据、Context Manifest、动作恢复和独立验证集，见 architecture.md §3.3；[阿里云手册总结与对照](docs/research/aliyun-agent-handbook-notes.md)。
+当前设计版本 **v2.0（2026-10-14）**。新增企业系统接入层 Connector Runtime 设计（统一 Tool Contract、三层数据边界、读写分级、MES 只读 MVP），见 architecture.md §3.4 与 [research/connector-runtime-design.md](docs/research/connector-runtime-design.md)；v1.10（2026-09-29）新增任务控制契约：TaskRun、完成证据、Context Manifest、动作恢复和独立验证集，见 architecture.md §3.3，[阿里云手册总结与对照](docs/research/aliyun-agent-handbook-notes.md)。
 
 1. **入口先查记忆（Wiki 层）+ Context 状态**：用户提问后先查**固化流程注册表**（映射表、SQL 模板、已审批 Workflow 的目录）决定"怎么执行"，同时读 **Context 当前状态**决定"基于什么现状执行"。命中 → 直接调用对应 LangGraph Workflow；确定性节点不调用 LLM，端到端延迟按 P50/P95 SLO 验证，结果可审计。
 2. **未命中先执行、后固化**：直接执行六步管线——关键词映射 → Ontology 实体消歧 → 工具映射与参数绑定 → 跨系统执行 → **上下文物化（写入 Context）** → 汇总解释，全程受治理与审计并保留执行轨迹；确认无误后再按轨迹做 LangGraph 构图固化。
@@ -51,7 +51,8 @@ wiki-ontology-agent-architecture/
     ├── research/                # 技术选型/调研文档
     │   ├── aliyun-agent-handbook-notes.md # 阿里云手册总结、阅读边界与 v1.10 对照
     │   ├── semantica-evaluation.md   # Semantica 可行性评估 + PoC（2026-09-04）
-    │   ├── mvp-plan.md               # 6 周 MVP 最小闭环规划（v1.2，含试点四维评估矩阵）
+    │   ├── mvp-plan.md               # 连接器底座与知识行动闭环 MVP 规划（v1.4，含试点四维评估矩阵）
+    │   ├── connector-runtime-design.md # ERP/MES/WMS 连接器运行时、Tool Contract 与结果模型设计（v1.0）
     │   ├── ontology-construction-design.md   # 本体构建工作台评估与设计（2026-09-19）
     │   └── ontology-kg-relationship-notes.md # Ontology 与知识图谱关系对照分析（2026-09-19）
     ├── references/             # 外部参考资料（PDF 等）
@@ -66,10 +67,11 @@ wiki-ontology-agent-architecture/
 - 想理解双路径与双闭环：看完整链路图 + architecture.md 第 4 章
 - 想了解 Workflow 编排层：看 architecture.md 第 3.1 节与 6.7 节
 - 想了解上下文层（Context / 上下文物化 / 认知闭环）：看 architecture.md 第 3.2 节与 6.8 节
+- 想设计 ERP/MES/WMS 接入层：看 [connector-runtime-design.md](docs/research/connector-runtime-design.md)
 - 想评估 token 成本：看 architecture.md 第 7 章
 - 想了解经验沉淀（Lesson / 会话记忆协议）：看 architecture.md 第 6.6 节与 8.1 节
 - 想了解运行时安全（动态自主度调节 / 适用域声明 / 超域降级）：看 architecture.md 第 4.4、4.5、6.5、9 节
-- 想落地实施：看 architecture.md 第 11 章落地路线图 + [mvp-plan.md](docs/research/mvp-plan.md)（含试点四维评估矩阵）
+- 想落地实施：看 architecture.md 第 11 章落地路线图 + [mvp-plan.md](docs/research/mvp-plan.md)（含 Connector Runtime MVP 和试点四维评估矩阵）
 - 想参与贡献：读 [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## 参考实现（可运行）

@@ -1,11 +1,11 @@
 # Wiki + Ontology 架构 MVP 落地规划（6 周最小闭环）
 
-> 版本：v1.3（2026-09-29）
-> 增量：承接 architecture.md v1.10 §3.3 任务控制契约。原有历史借鉴版本保留，当前验收以本增量为准。
-> 状态：MVP 规划 + 外部方案借鉴映射（对应 architecture.md v1.8）
+> 版本：v1.4（2026-10-14）
+> 增量：新增 Connector Runtime 接入规划（承接 architecture.md v2.0 §3.4）；v1.3（2026-09-29）承接 architecture.md v1.10 §3.3 任务控制契约。
+> 状态：MVP 规划 + 外部方案借鉴映射 + Connector Runtime 接入规划（对应 architecture.md v2.0）
 > 读者对象：企业知识库 / AI Agent 平台的技术负责人、架构师（本仓库 owner 健哥）
-> 目的：回答「参考乌圆AI 自研 Ontology Engine 的 MVP 方案，本架构如何以最小代价跑通第一个闭环」
-> 相关：`docs/architecture.md`（v1.8）§4.3 六步管线 / §4.4 动态自主度调节 / §9 安全治理 / §11 落地路线图 / §11.1 参考实现映射
+> 目的：回答「如何以最小代价跑通知识行动闭环与第一个 ERP/MES/WMS 真实只读连接器」
+> 相关：`docs/architecture.md`（v2.0）§3.4 Connector Runtime / §3.3 任务控制契约 / §4.3 六步管线 / §4.4 动态自主度调节 / §9 安全治理 / §11 落地路线图 / §11.1 参考实现映射
 
 ## 1. 来源与结论摘要
 
@@ -46,16 +46,32 @@
 
 ### 3.2 明确不做（Phase 2）
 
-图 DB / GraphRAG、CDC 流式摄入（Funnel）、行列级 Marking 权限、Branching、多源自动 merge、LangGraph 动态构图（固化管线先行，动态构图等闭环跑通再上——遵守"先执行后构图"约定）。
+图 DB / GraphRAG、CDC 流式摄入（Funnel）、事件适配器、多源自动 merge、行列级 Marking 权限、Branching、全量 ERP/WMS 写入、LangGraph 动态构图（固化管线先行，动态构图等闭环跑通再上——遵守"先执行后构图"约定）。
+
+### 3.3 Connector Runtime MVP 范围
+
+Connector Runtime 作为接入层独立运行时，先不追求覆盖所有厂商和协议，只验证一条真实只读链路：
+
+| 模块 | MVP 形态 | 验收重点 |
+|---|---|---|
+| Connector Registry | 一个 MES 实例、环境/凭据引用/能力/只读标志 | 配置与秘密分离，可启停和撤销 |
+| Tool Contract | 生产订单、报工、设备/产线状态三个查询工具 | 输入输出 Schema、权限、风险、超时、错误分类 |
+| Adapter | REST 或 SQL 二选一，优先沿真实系统接口 | 上层不感知厂商协议 |
+| 结果管线 | Raw → Canonical → Ontology → Context | 来源、时间、Schema 版本、trace_id 全链路可追溯 |
+| 分析 | 产量、良率、达成率、停机时长等确定性指标 | 与源系统报表对账，LLM 只负责解释 |
+| 治理 | 只读、RBAC、审计、限流、超时、重试、健康检查 | 失败不伪装为空数据，越权被拦截 |
+
+MVP 不包含生产写入、自动关单、库存调整、CDC、消息订阅和多源自动合并。连接器设计的完整契约和验收标准见 [connector-runtime-design.md](connector-runtime-design.md)。
 
 ## 4. 六周排期
 
 | 阶段 | 内容 | 产出 |
 |---|---|---|
-| **W1-2 语义底座** | **数据盘点先行（v1.2，M3）**：盘点 device-station-fault 存量故障码数据的质量/覆盖率/更新频率，按"盘点→知识识别→语义映射→构建→验证"路线裁剪 schema，防"过设计"；随后 YAML 定义核心 Object/Link/Action 类型；audit 表升级为 6 字段 append-only（借鉴点 1/4 落地） | 数据盘点报告 + Schema 注册表最小版 + 合规审计表 |
-| **W3-4 执行链路** | 六步管线 × Action 7 步融合：治理三道门（参数/权限/规则）→ 内部事务 → 外部 Saga 补偿（借鉴点 2）→ 审计；物化加 user edits win（借鉴点 3） | 可执行、可审计、可补偿的 Action 链路 |
+| **W1-2 语义与接入盘点** | **数据盘点先行（v1.3，M3）**：盘点 device-station-fault 与 MES 试点数据的质量/覆盖率/更新频率，确认 MES 厂商、接口、网络、只读账号和指标口径；按"盘点→知识识别→语义映射→构建→验证"路线裁剪 schema，防"过设计"；随后 YAML 定义核心 Object/Link/Action 类型；audit 表升级为 6 字段 append-only（借鉴点 1/4 落地） | 数据与接口盘点报告 + Schema 注册表最小版 + 连接器清单 + 合规审计表 |
+| **W3-4 连接器与执行链路** | 实现 Connector Runtime 最小内核（Tool Contract、Registry、REST/SQL Adapter 二选一、超时/重试/审计/健康检查），再接入六步管线 × Action 7 步融合：治理三道门（参数/权限/规则）→ 内部事务 → 外部 Saga 补偿（借鉴点 2）→ 审计；物化加 user edits win（借鉴点 3） | MES 只读连接器 + 可执行、可审计、可补偿的 Action 链路 |
 | **W5 闭环沉淀** | 上下文物化 → LLM 汇总（读 ContextPack）→ 人工审批闸口 → 过审流程注册 Wiki 注册表（条目含 `applicable_domain` 适用域 + 分类标签，对应 architecture v1.8）+ 命中直调（含超域降级检查） | 知识闭环可运转 + 注册页资产字段就位 |
-| **W6 试运行** | 1 个真实场景跑 7 天 + 业务验收 | 闭环验证 |
+| **W5.5 指标对账** | 产量、良率、达成率、停机时长与源系统报表对账；验证空结果/超时/权限拒绝/源系统异常的错误分类 | 指标口径与数据质量报告 |
+| **W6 试运行** | 1 个真实场景跑 7 天 + 业务验收，记录连接器 P50/P95、成功率、映射失败和对账差异 | 闭环验证 + 连接器运行报告 |
 
 ### 4.1 试点选择：场景四维评估矩阵（v1.2，M1）
 
