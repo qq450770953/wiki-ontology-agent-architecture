@@ -1,6 +1,7 @@
 # Wiki + Ontology 企业知识行动架构设计
 
-> 版本：v2.0（2026-10-14）
+> 版本：v2.1（2026-10-15）
+> **v2.1 增量说明**：新增 §3.5 治理型本体构建面与语义契约，复用既有 M1–M4 工作台与审批链；补充 Ontology/Mapping 版本绑定、发布激活、迁移与导入安全边界。均为设计要求，非运行时实现；详见 [融合设计与兼容性审查](research/ontology-playground-integration.md)。
 > 状态：架构设计稿 + 参考实现映射（实现见 [ontology-enterprise](https://github.com/qq450770953/ontology-enterprise)）
 > 读者对象：企业知识库 / AI Agent 平台的技术负责人、架构师、数据治理负责人
 >
@@ -214,6 +215,18 @@ remaining_items: []
 数据返回遵循 **Raw Result → Canonical Result → Ontology Mapping → Context Object** 三层边界：原始结果用于受控追溯，标准结果统一业务对象，只有经过 Ontology 映射和可信度校验后才物化进 Context。业务明细不写入 Wiki；指标通过版本化 Metric Registry 做确定性计算，LLM 只解释已计算结果。
 
 连接器设计、Tool Contract、结果模型、读写分级、MVP 和验收标准详见 [research/connector-runtime-design.md](research/connector-runtime-design.md)。
+
+### 3.5 治理型本体构建面与语义契约（v2.1）
+
+借鉴 Ontology Playground 的受约束建模、图预览、目录和格式适配模式，扩展既有[治理型本体演化工作台](research/ontology-construction-design.md) M1–M4，不新增部署层、平行 Registry 或权限引擎。M1 先用 YAML/JSON 与只读预览，M3 复用审批、版本冻结和 append-only 审计，M4 初期以人工依赖清单替代自动影响分析；Catalogue 是已发布 schema 的只读投影，不存生产业务实例。
+
+规范化本体模型 Canonical Ontology Model 只定义类型、属性、关系、基数、状态与 Metric/Action/Policy 的版本引用；不是第二个业务存储，也不意味着与外部 ontology-enterprise 当前格式直接兼容。内部 runtime-v1 profile 优先，RDF/XML 等互操作在有消费者时实施；不引入完整 OWL 推理，不承诺未知构造的无损转换。
+
+Tool Contract 绑定精确的 ontology_ref、mapping_ref、output_type 与 metric_refs。物化前检查来源结构、映射、类型、单位、枚举、身份及版本；失败不能当作空数据。Context 保留 source、trace_id、ontology_ref、mapping_ref 和时间语义；业务状态与 observed/inferred/confirmed/retracted 可信状态分开，校验通过不等于事实确认。
+
+本体发布遵循候选 → 校验 → 影响分析 → 审批 → 冻结发布 → 显式激活；运行中任务固定依赖，安全撤销则在下一步执行前阻断。破坏性变更需存量 Context 迁移和受影响 Workflow 处置，配置回滚不能撤销外部业务副作用。先以已确认试点的最小契约回放验证，再建设可视化编辑和标准交换；不以全量 Workbench 阻塞 MVP。
+
+字段设计、错误分类、版本兼容、导入安全及负例验收见 [ontology-playground-integration.md](research/ontology-playground-integration.md)。以上均为待实现契约。
 
 ## 4. 核心流程：双路径 + 双闭环
 

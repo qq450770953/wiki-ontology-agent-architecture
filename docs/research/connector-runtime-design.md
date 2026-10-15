@@ -1,9 +1,10 @@
 # 企业系统接入层 Connector Runtime 设计
 
-> 版本：v1.0（2026-10-14）
+> 版本：v1.1（2026-10-15）
+> 增量：Tool Contract 补本体/映射精确版本绑定、物化错误与数据可信边界；字段契约见 [融合设计](ontology-playground-integration.md) §5。
 > 状态：架构设计；未包含真实连接器实现
 > 适用范围：ERP / MES / WMS 等工厂业务系统的只读查询、指标分析与受治理写入
-> 相关：`docs/architecture.md` §3.4、§4.3、§9、§11；`docs/research/mvp-plan.md` v1.4
+> 相关：`docs/architecture.md` v2.1 §3.4、§3.5、§4.3、§9、§11；`docs/research/mvp-plan.md` v1.5
 
 ## 1. 结论与边界
 
@@ -76,6 +77,8 @@ owner: manufacturing-it
 ## 4. Tool Contract
 
 统一工具契约是上层与接入运行时之间的稳定边界。每个工具声明输入输出、权限、风险、重试和来源。
+
+v1.1 增补（设计要求）：工具以 ontology_binding 固定 ontology_ref、mapping_ref、output_type 与 metric_refs，字段详见 [本体融合契约](ontology-playground-integration.md) §5。任务启动冻结依赖，不在步骤中解析 latest。结构、单位、枚举、身份或版本不符时拒绝物化并返回分类错误，不返回成功空列表；显式部分结果须标 partial 与隔离记录，指标默认拒绝部分输入。Context 保存映射、本体、源 schema 和工具版本及 source/trace_id/时间，校验成功不自动升级可信状态。映射规则归语义层，适配器不自行定义业务类型或指标。
 
 ```yaml
 tool_id: mes.production_order.query

@@ -1,11 +1,12 @@
 # Wiki + Ontology 架构 MVP 落地规划（6 周最小闭环）
 
-> 版本：v1.4（2026-10-14）
+> 版本：v1.5（2026-10-15）
+> v1.5 增量：承接 architecture.md v2.1 §3.5，补最小本体契约、版本绑定与负例验收；复用工作台 M1–M4，前端编辑与外部 RDF profile 不阻塞 MVP。
 > 增量：新增 Connector Runtime 接入规划（承接 architecture.md v2.0 §3.4）；v1.3（2026-09-29）承接 architecture.md v1.10 §3.3 任务控制契约。
-> 状态：MVP 规划 + 外部方案借鉴映射 + Connector Runtime 接入规划（对应 architecture.md v2.0）
+> 状态：MVP 规划 + 外部方案借鉴映射 + Connector Runtime 接入规划（对应 architecture.md v2.1）
 > 读者对象：企业知识库 / AI Agent 平台的技术负责人、架构师（本仓库 owner 健哥）
 > 目的：回答「如何以最小代价跑通知识行动闭环与第一个 ERP/MES/WMS 真实只读连接器」
-> 相关：`docs/architecture.md`（v2.0）§3.4 Connector Runtime / §3.3 任务控制契约 / §4.3 六步管线 / §4.4 动态自主度调节 / §9 安全治理 / §11 落地路线图 / §11.1 参考实现映射
+> 相关：`docs/architecture.md`（v2.1）§3.5 本体构建面 / §3.4 Connector Runtime / §3.3 任务控制契约 / §4.3 六步管线 / §4.4 动态自主度调节 / §9 安全治理 / §11 落地路线图 / §11.1 参考实现映射
 
 ## 1. 来源与结论摘要
 
@@ -47,6 +48,14 @@
 ### 3.2 明确不做（Phase 2）
 
 图 DB / GraphRAG、CDC 流式摄入（Funnel）、事件适配器、多源自动 merge、行列级 Marking 权限、Branching、全量 ERP/WMS 写入、LangGraph 动态构图（固化管线先行，动态构图等闭环跑通再上——遵守"先执行后构图"约定）。
+
+### 3.2.1 最小本体契约与治理验收（v1.5）
+
+复用既有本体工作台 M1–M4，不新建平行 Registry。W1-2 用已确认试点的 YAML/JSON 种子 schema、精确版本清单和人工影响检查起步；W3-4 绑定 tool、mapping、metric 与 ontology 版本；W5 用脱敏样本回放验证结构、身份、单位、枚举和 Context 来源字段；W6 验证版本切换、撤销和回滚。未访问真实接口的 fixture 回放只能称离线验证。
+
+必须包含缺字段/null/0、未知枚举、跨租户同 ID、单位冲突、继承环、源 schema 漂移、部分数据、版本缺失和同版本哈希不一致等负例。安全负例全部通过才允许发布；其余报告通过数/总数，不预填完成状态。详见 [融合设计](ontology-playground-integration.md) §8。
+
+P1 仅增加只读图预览、Catalogue 投影和 Diff；可视化编辑、自动影响分析、RDF/XML/OWL/SHACL/JSON-LD 互操作后置按实际消费者决定，不能阻塞闭环。设备售后仍是既有优先候选，MES 接入试点须确认接口/只读权限/指标口径，不以其作为所有试点前置条件。
 
 ### 3.3 Connector Runtime MVP 范围
 
