@@ -1,6 +1,8 @@
 # Wiki + Ontology 企业知识行动架构设计
 
-> 版本：v2.1（2026-10-15）
+> 版本：v2.3（2026-10-21）
+> **v2.3 增量说明**：新增 §3.7 决策门控层（Decision Gate / AgentJev）与 §11.2 后续阶段 TODO 清单，将决策模型接入明确标记为**规划中、本期不实施**；仅固化职责位置与六条硬边界，不定义模型选型、训练数据、阈值和评测方案。决策层推迟到治理底座与评测基线可运行后单独立项。本节为设计占位，非运行时实现。
+> **v2.2 增量说明**：新增 §3.6 LLM-Wiki 图谱索引与数字世界 VLA 资产治理，明确 Wiki 作为统一资产索引和治理投影，不替代 Ontology/Policy/Tool/Workflow/Context 等运行时真源；补充六类逻辑索引、知识与探索资产生命周期、四层权限、工具链接、Workflow 发布门禁和未知探索 Promotion 规则。同步修正完成证据边界：模型汇总不得替代外部业务回执或独立验证；均为架构设计要求，非运行时实现；详见 [LLM-Wiki 图谱索引设计](research/llm-wiki-graph-index-design.md)。
 > **v2.1 增量说明**：新增 §3.5 治理型本体构建面与语义契约，复用既有 M1–M4 工作台与审批链；补充 Ontology/Mapping 版本绑定、发布激活、迁移与导入安全边界。均为设计要求，非运行时实现；详见 [融合设计与兼容性审查](research/ontology-playground-integration.md)。
 > 状态：架构设计稿 + 参考实现映射（实现见 [ontology-enterprise](https://github.com/qq450770953/ontology-enterprise)）
 > 读者对象：企业知识库 / AI Agent 平台的技术负责人、架构师、数据治理负责人
@@ -197,7 +199,7 @@ completion_evidence:
 remaining_items: []
 ```
 
-预算数值是 MVP 初始设计值，须由试点负责人校准。任务结束时可以将模型的最终汇总作为完成证据，原因是经过结构化 ContextPack 约束的汇总与外部业务回执等价；因此无需每次重复读回业务状态。
+预算数值是 MVP 初始设计值，须由试点负责人校准。模型的最终汇总只能作为面向用户的解释性 Artifact，不能替代外部业务回执、状态回读或独立验证证据。`accepted` 不等于业务成功，`unknown` 必须先查询外部业务状态；只有满足既定完成证据清单，TaskRun 才能进入 `completed`。对于只读分析任务，可按场景定义不重复回读的例外，但该例外必须在 Workflow/Tool Contract 中明确声明，不能由模型汇总自动推断。
 
 **Context Manifest（输入清单）**：每轮保存 task_id、call_id、context_policy_version，以及实际纳入的 source_id/version、scope、trust_level、token_count、裁剪原因和 Artifact 引用。处理顺序为身份/作用域过滤 → 相关性排序 → 预算裁剪 → 组装；未授权内容不得发送给重排器。大结果卸载后保留稳定引用、摘要和哈希，读取引用仍需鉴权。压缩前先提交审批、动作回执和任务状态，摘要不能成为授权真源。
 
@@ -227,6 +229,66 @@ Tool Contract 绑定精确的 ontology_ref、mapping_ref、output_type 与 metri
 本体发布遵循候选 → 校验 → 影响分析 → 审批 → 冻结发布 → 显式激活；运行中任务固定依赖，安全撤销则在下一步执行前阻断。破坏性变更需存量 Context 迁移和受影响 Workflow 处置，配置回滚不能撤销外部业务副作用。先以已确认试点的最小契约回放验证，再建设可视化编辑和标准交换；不以全量 Workbench 阻塞 MVP。
 
 字段设计、错误分类、版本兼容、导入安全及负例验收见 [ontology-playground-integration.md](research/ontology-playground-integration.md)。以上均为待实现契约。
+
+### 3.6 LLM-Wiki 图谱索引与数字世界 VLA 资产治理（v2.2）
+
+本节把 LLM-Wiki 从“固化流程注册表 + 知识沉淀页”扩展为数字世界 Agent 的**统一资产索引、知识入口与治理投影**。它负责让 Agent 找到应该理解的知识、必须遵守的规则、可以调用的工具、能够复用的 Workflow 以及已经验证的经验；它不替代各专业系统的运行时权威。
+
+**权威边界**：Wiki 索引可发现性；Ontology Registry 提供语义 schema；Policy/Authorization Service 决定实时授权；Tool/Connector Registry 提供可执行能力；Workflow Registry 提供编译后的 LangGraph 定义；Context Store 保存带时间和来源的当前状态；外部业务系统提供事实和业务回执；Artifact/Audit Store 保存证据与审计。Wiki 不保存实时交易明细、凭据、连接池或未经发布的可执行代码。
+
+**图谱节点与受控边**：节点至少包括 `Knowledge`、`Concept`、`Entity`、`OntologyProfile`、`Metric`、`Rule`、`Policy`、`Tool`、`Connector`、`Workflow`、`Skill`、`Exploration`、`Candidate`、`ContextRef`、`Artifact`、`Lesson`、`Evaluation`。边必须使用受控关系并带版本、来源、置信度、有效期和可见性，例如 `alias_of`、`subclass_of`、`evidence_for`、`applies_to`、`requires`、`maps_to`、`implemented_by`、`invokes`、`observes`、`changes`、`verified_by`、`derived_from`、`supersedes` 和 `scoped_by`。边分为语义、执行依赖和证据三类，只有通过发布校验的执行依赖边才影响路由。
+
+**六类逻辑索引**：不建设一张没有边界的“大图”，统一 Graph Index 通过稳定 ID 关联六类逻辑索引：
+
+1. `Semantic Index`：Concept、Entity、OntologyProfile、Metric、别名、类型继承和映射。
+2. `Knowledge Index`：Knowledge、Lesson、Artifact、证据、来源和适用域。
+3. `Policy Index`：Rule、Policy、作用域、风险等级、审批和有效期。
+4. `Capability Index`：Tool、Connector、Skill、输入输出 Schema、能力和风险。
+5. `Workflow Index`：固定 Workflow、节点、触发条件、依赖版本、评估和回滚引用。
+6. `Exploration Index`：未知任务、Candidate、TaskRun、Trace、ContextRef 和待确认缺口。
+
+逻辑索引不是权限边界。统一入口返回结果前必须按租户、身份、作用域、资产状态、适用域和发现权限过滤；读取和执行时由授权服务再次判断。
+
+**知识与资产生命周期**：普通知识遵循 `draft → extracted → reviewed → approved → published → deprecated/revoked`；可执行资产遵循 `draft → validated → approved → staged → active → suspended → deprecated/revoked`；探索资产遵循 `observed → candidate → corroborated → accepted/rejected → promoted/expired`。已发布资产不原地覆盖，变更生成新版本并通过 `supersedes` 保留历史。安全撤销优先于平滑升级。
+
+**权限四层**：区分发现、读取、执行和发布权限。权限模型为“主体—作用域—资产—动作—条件”，Wiki 的 `policy_refs` 只是引用，不能签发授权。权限至少在检索、参数绑定和执行前检查三次；子 Workflow 不自动继承父 Workflow 的工具权限。风险按 L0 静态检索、L1 只读查询、L2 可逆写入、L3 跨系统写入、L4 不可逆高危动作分级，L3 以上默认需要人工闸门。
+
+**工具链接**：运行时关系为 `Concept/Entity → Capability → Tool Contract → Connector → External System → Context Object → Verification Artifact`。Tool 必须绑定精确的 Ontology/Mapping/Metric/Policy 版本，声明输入输出 Schema、适用域、风险、幂等键、超时、失败分类和后置验证器；Connector Runtime 负责凭据引用、参数白名单、限流、重试、熔断、Raw → Canonical → Context 映射和审计。禁止模型自由生成 SQL、URL、脚本或凭据。
+
+**Workflow 索引与发布**：Wiki 只登记目标、触发条件、适用域、依赖版本、评估、审批和 `implementation_ref`；实际执行加载 Workflow Registry 中冻结版本的 LangGraph 定义。激活前须完成静态检查、依赖版本冻结、权限/敏感数据审查、正常和安全负例回放、影子或灰度运行以及人工审批。任务内固定依赖清单，禁止解析 `latest`。Workflow 的编排成功不等于业务成功，外部写入必须有幂等键、业务回执或回读验证。
+
+**未知探索图谱**：探索可记录候选实体/关系、任务分解、工具发现、界面状态、执行轨迹、验证缺口和 Workflow 草案，但默认都是 `candidate`，必须带 `confidence`、`evidence_refs`、提出者和过期时间。探索结果不能整图一键固化；Promotion 必须明确落到 Knowledge、Rule、Tool、Workflow 或 Ontology/Mapping 中的单一资产类型，并通过证据、适用域、回归和对应审批门禁。未通过的结果保留为 rejected/expired，用于负向 Lesson 和评估。
+
+**数字世界 VLA 运行链路**：文本、截图或界面状态先经过意图与作用域解析，再检索六类索引并过滤权限；命中 active Workflow 则调用固定图，未命中则进入受预算、权限和副作用控制的 Exploration；执行前重新授权，执行中通过 Tool/Connector 契约约束，执行后以外部状态、业务回执或独立验证收敛到 TaskRun/Context/Artifact。模型输出只能作为解释性结果，不能作为业务成功证据。截图、OCR、DOM 等视觉输入默认是不可信输入，不得直接触发高风险动作。
+
+完整字段、示例、错误分类、验收用例和 Extension Contract 见 [LLM-Wiki 图谱索引设计](research/llm-wiki-graph-index-design.md)。以上为设计契约，未证明已有运行时服务、图数据库、策略引擎或真实数字系统连接。
+
+### 3.7 决策门控层（Decision Gate / AgentJev）—— TODO，本期不实施（v2.3）
+
+> **状态：规划占位。未设计、未实现、不进入本期设计实施范围。** 本节只固化"若将来接入，必须放在哪里、受什么约束"，防止后续实现时破坏既有契约。模型选型、训练数据、阈值配置、概率校准和评测方案均未定义，需单独立项评审；在立项前不得据此章节声称任何能力。
+
+规划位置在 **Agent 规划** 与 **Policy / Workflow / Tool 执行**之间，承担低延迟、类型化、可阈值化的判断。它不承担语言生成、知识检索、权限裁决、动作执行，也不读取实时业务数据。
+
+**职责候选（待评估，非承诺）**：
+
+- `Boolean` 类：是否需要澄清、是否允许继续、是否需要人工闸门、是否需要回查外部状态。
+- `Choice` 类：在已授权的有限候选工具或 Workflow 分支中选择下一步。
+- `Score` 类：风险等级、结果质量分级。
+
+**硬边界（若将来实施，逐条不可豁免）**：
+
+1. **候选集不由模型产生**。候选来自 Capability Index / Workflow Index，且必须先按租户、权限、精确版本、适用域过滤；模型只能在已过滤集合内比较，不能新增、改写或扩大候选。
+2. **输出只是建议**。最终裁决权属于应用代码 + Policy Service。`accepted` 不等于业务成功，`unknown` 仍须回查外部系统（§3.3），不得以模型置信度替代回执或状态回读。
+3. **概率不等于成功率**。自动放行须同时满足概率阈值、`margin`、风险等级（§3.6 的 L0–L4）和实时授权校验；L3 以上动作不因置信度高而跳过人工闸门。
+4. **可判定规则不进模型**。金额阈值、客户等级、物料齐套率、权限作用域等硬约束由 Policy / Rule 承担；模型不承担、也不覆盖。
+5. **每次决策必须留证**。留存 `DecisionArtifact`：候选集、概率、`margin`、阈值版本、模型版本、Policy 与 Ontology/Mapping 版本、最终执行结果，支持回放、校准和归因。
+6. **不可用即降级**。模型服务异常、超时或输出不合 schema 时，回落到原有确定性流程或人工，不阻塞主链路，不改变 TaskRun/Action 状态语义。
+
+**为什么推迟**：Decision Gate 的价值上限由真实业务轨迹和决策契约的成熟度决定，而当前仓库尚无运行时索引、Policy Service 和 Tool Registry 实现，也没有可用的任务回放集。在没有评估基线时引入概率判断，只会把不可解释性叠加到尚未验证的链路上。因此顺序是先建治理底座与评测集（§3.6、§11），再评估是否引入决策层。
+
+**未决问题（立项前必须回答）**：模拟谁的判断尺度；覆盖哪一类决策；候选集如何从索引生成；概率与人工闸门的叠加关系；是否需要领域训练与概率校准；决策错误的责任归属。
+
+相关评估结论（含"先零样本 + 离线回放、再决定是否微调"的分阶段判断）见 [LLM-Wiki 图谱索引设计](research/llm-wiki-graph-index-design.md) §12，均为待验证推论。
 
 ## 4. 核心流程：双路径 + 双闭环
 
@@ -738,6 +800,19 @@ status: active
 | §8 知识复利 | 固化写回、版本失效 | SQLite 存储 + `--root` 隔离；实体 `supersedes_id`/status 支持替代与失效 |
 
 > 说明：**LangGraph 承担 Workflow 编排层（图编排、状态、重试、断点续跑）；ontology-enterprise 承担语义层与治理底座**（实体、模板、受治理动作、RBAC、审计），二者组合即为可运行底座。"入口路由层（Wiki 索引匹配 / 固化流程注册表）"与"接入层（MCP/CLI/API 真实系统）"需按 §11 路线图在企业场景中接入。
+
+## 11.2 后续阶段 TODO（本期不实施）
+
+以下事项方向已明确，但**均未进入当前实施范围，不代表任何已有能力**。列入此处是为了避免后续把它们误当成已设计或已实现的内容；每项启动前须先补齐前置条件并单独立项。
+
+| # | TODO | 关联章节 | 启动前置条件 | 状态 |
+|---|---|---|---|---|
+| T1 | 决策门控层（Decision Gate / AgentJev）接入 | §3.7 | 六类索引可查询、Policy Service 与 Tool Registry 就绪、已有真实任务回放集 | 未开始 |
+| T2 | 决策契约与评测集（`DecisionPolicy` / `DecisionArtifact` / 阈值与降级） | §3.7 | 选定单一业务决策场景与责任人 | 未开始 |
+| T3 | 决策层领域微调与概率校准 | §3.7 | T1/T2 证明误差来自领域理解而非架构、权限或数据缺陷 | 未开始，待评估 |
+| T4 | 图数据库选型与六类索引物理落地 | §3.6 | 只读索引契约冻结、查询模式稳定 | 未开始 |
+| T5 | 首个 ERP/MES/WMS 只读业务闭环试点 | §3.4、§3.6 | 接口、账号、数据字典与业务口径经业务负责人确认 | 未开始 |
+| T6 | 视觉输入（截图 / OCR / DOM）在低风险场景的受控接入 | §3.6 | 不可信输入护栏与 L0–L2 动作边界验证通过 | 未开始 |
 
 ## 12. 参考
 

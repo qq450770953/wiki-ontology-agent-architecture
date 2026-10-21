@@ -2,13 +2,13 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> 让企业知识从"可检索"走向"可行动"：LLM Wiki 沉淀认识，Ontology 统一语义，Context 重建世界当前状态，LangGraph Workflow 编排执行，固化经人工审批实现知识复利 + 认知同步。
+> 让企业知识从"可检索"走向"可行动"：LLM Wiki 作为资产索引与治理入口，Ontology 统一语义，Context 重建世界当前状态，LangGraph Workflow 编排执行，固化经人工审批实现知识复利 + 认知同步。
 
-本仓库是一份**架构设计方案**（非实现代码），面向企业知识库 / AI Agent 平台的技术负责人和架构师。方案回答一个核心问题：**如何让 Agent 基于企业知识正确选择工具、绑定参数并完成跨系统查询，而不是停留在"检索到相关文档"？**
+本仓库是一份**架构设计方案**（非实现代码），面向企业知识库 / AI Agent 平台的技术负责人和架构师。方案回答两个核心问题：**如何让 Agent 基于企业知识正确选择工具、绑定参数并完成跨系统查询；以及如何在数字世界中，用受治理的多模态/语言输入驱动可验证的数字动作？**
 
 ## 核心设计
 
-当前设计版本 **v2.1（2026-10-15）**。新增治理型本体构建面与最小语义契约（§3.5），复用既有 M1–M4 工作台和审批链，补充版本绑定、映射校验、迁移和发布边界；见 [Ontology Playground 融合设计](docs/research/ontology-playground-integration.md)。全部为设计增量，未包含运行时实现。v2.0（2026-10-14）新增企业系统接入层 Connector Runtime 设计（统一 Tool Contract、三层数据边界、读写分级、MES 只读 MVP），见 architecture.md §3.4 与 [research/connector-runtime-design.md](docs/research/connector-runtime-design.md)；v1.10（2026-09-29）新增任务控制契约：TaskRun、完成证据、Context Manifest、动作恢复和独立验证集，见 architecture.md §3.3，[阿里云手册总结与对照](docs/research/aliyun-agent-handbook-notes.md)。
+当前设计版本 **v2.3（2026-10-21）**。新增 §3.7 决策门控层（Decision Gate / AgentJev）**占位章节**与 §11.2 后续阶段 TODO 清单，明确决策模型接入为规划中、本期不实施，仅固化职责位置与六条硬边界；模型选型、训练与阈值方案均未定义。v2.2（2026-10-21）新增 LLM-Wiki 图谱索引与数字世界 VLA 资产治理（§3.6），明确 Wiki 是统一资产索引与治理投影，不替代 Ontology、Policy、Tool/Connector、Workflow、Context 和外部业务系统真源；补充六类逻辑索引、知识/执行/探索资产生命周期、四层权限、工具链接、Workflow 发布门禁和未知探索 Promotion 规则，见 [LLM-Wiki 图谱索引设计](docs/research/llm-wiki-graph-index-design.md)。全部为设计契约，未包含运行时实现。v2.1（2026-10-15）新增治理型本体构建面与最小语义契约（§3.5），复用既有 M1–M4 工作台和审批链，补充版本绑定、映射校验、迁移和发布边界；见 [Ontology Playground 融合设计](docs/research/ontology-playground-integration.md)。v2.0（2026-10-14）新增企业系统接入层 Connector Runtime 设计（统一 Tool Contract、三层数据边界、读写分级、MES 只读 MVP），见 architecture.md §3.4 与 [research/connector-runtime-design.md](docs/research/connector-runtime-design.md)；v1.10（2026-09-29）新增任务控制契约：TaskRun、完成证据、Context Manifest、动作恢复和独立验证集，见 architecture.md §3.3，[阿里云手册总结与对照](docs/research/aliyun-agent-handbook-notes.md)。
 
 1. **入口先查记忆（Wiki 层）+ Context 状态**：用户提问后先查**固化流程注册表**（映射表、SQL 模板、已审批 Workflow 的目录）决定"怎么执行"，同时读 **Context 当前状态**决定"基于什么现状执行"。命中 → 直接调用对应 LangGraph Workflow；确定性节点不调用 LLM，端到端延迟按 P50/P95 SLO 验证，结果可审计。
 2. **未命中先执行、后固化**：直接执行六步管线——关键词映射 → Ontology 实体消歧 → 工具映射与参数绑定 → 跨系统执行 → **上下文物化（写入 Context）** → 汇总解释，全程受治理与审计并保留执行轨迹；确认无误后再按轨迹做 LangGraph 构图固化。
@@ -54,6 +54,7 @@ wiki-ontology-agent-architecture/
     │   ├── mvp-plan.md               # 连接器底座与知识行动闭环 MVP 规划（v1.5，含本体契约与试点四维评估矩阵）
     │   ├── connector-runtime-design.md # ERP/MES/WMS 连接器运行时、Tool Contract 与结果模型设计（v1.1）
     │   ├── ontology-playground-integration.md # 本体工作台兼容性审查、语义契约、版本治理（v1.0）
+    │   ├── llm-wiki-graph-index-design.md # LLM-Wiki 图谱索引、权限、工具链接、Workflow 与探索治理（v1.0）
     │   ├── ontology-construction-design.md   # 本体构建工作台评估与设计（2026-09-19）
     │   └── ontology-kg-relationship-notes.md # Ontology 与知识图谱关系对照分析（2026-09-19）
     ├── references/             # 外部参考资料（PDF 等）
@@ -69,6 +70,8 @@ wiki-ontology-agent-architecture/
 - 想了解 Workflow 编排层：看 architecture.md 第 3.1 节与 6.7 节
 - 想了解上下文层（Context / 上下文物化 / 认知闭环）：看 architecture.md 第 3.2 节与 6.8 节
 - 想设计本体构建面、映射契约与版本发布：看 [Ontology Playground 融合设计](docs/research/ontology-playground-integration.md) 与 architecture.md §3.5
+- 想设计 LLM-Wiki 图谱索引、权限、工具链接和 Workflow 治理：看 [llm-wiki-graph-index-design.md](docs/research/llm-wiki-graph-index-design.md) 与 architecture.md §3.6
+- 想了解决策模型（AgentJev / Decision Gate）的规划位置：看 architecture.md §3.7 与 §11.2 后续阶段 TODO 清单（**均标记为 TODO，本期不实施**）
 - 想设计 ERP/MES/WMS 接入层：看 [connector-runtime-design.md](docs/research/connector-runtime-design.md)
 - 想评估 token 成本：看 architecture.md 第 7 章
 - 想了解经验沉淀（Lesson / 会话记忆协议）：看 architecture.md 第 6.6 节与 8.1 节
