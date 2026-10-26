@@ -46,8 +46,16 @@ wiki-ontology-agent-architecture/
 ├── AGENTS.md                    # 面向 AI 会话的仓库操作规范（隐含工作流显式化）
 ├── LICENSE                      # MIT License
 ├── CONTRIBUTING.md              # 贡献指南
+├── prototype/                   # 只读服务出口原型（2026-10-26，HTTP 调试传输，非 MCP 标准）
+│   ├── mcp_server.py            # 三个只读能力：schema.describe / object.query / context.assemble
+│   ├── profile_loader.py        # 行业 profile 加载器 + 作用域校验 + mock 数据
+│   └── requirements.txt         # pyyaml
 └── docs/
     ├── architecture.md          # 完整架构设计文档（核心交付物）
+    ├── STATUS.md                # 能力实现状态表（设计 vs 运行时证据，2026-10-26 起）
+    ├── interfaces/              # 接口契约（2026-10-26 新增）
+    │   ├── mcp-server-spec.md   # 本体只读服务出口规约（入参/出参/错误码/验收标准/升级映射）
+    │   └── profile-manufacturing-equipment-fault-v1.yaml # 行业 profile：六层映射 + 显式缺口
     ├── research/                # 技术选型/调研文档
     │   ├── aliyun-agent-handbook-notes.md # 阿里云手册总结、阅读边界与 v1.10 对照
     │   ├── semantica-evaluation.md   # Semantica 可行性评估 + PoC（2026-09-04）
@@ -97,6 +105,19 @@ wiki-ontology-agent-architecture/
 | 双路径中"命中优先" | 固化流程注册表指向已审批图，直接加载调用 |
 
 想动手体验语义底座：clone ontology-enterprise 后 `python3 scripts/ontology_enterprise.py --root ./ontology init` 即可起一个带 RBAC 与审计的本地图谱。
+
+## 本仓原型（prototype/，2026-10-26）
+
+「本体独立成层」的最小可运行证据：一个**只读**服务出口，让第二个 Agent 不 import 本体代码即可读取语义。
+
+- **规约**：[docs/interfaces/mcp-server-spec.md](docs/interfaces/mcp-server-spec.md)（三能力入参/出参/错误码 + 验收标准 + 与标准 MCP 的升级映射）
+- **原型**：`python prototype/mcp_server.py --port 3100`，HTTP + JSON-RPC 2.0 调试传输
+- **能力**：`schema.describe` / `object.query` / `context.assemble`（全部只读、作用域过滤、响应带 `ontology_version`、逐调用审计）
+- **验收**：2026-10-26 实测 9 项 PASS（双进程并发同版本、越权 403 无泄露、幂等、裁剪可解释、审计留痕），记录见 `prototype/mcp_server.py` 头部
+- **边界**：非 MCP 标准传输（升级路径见规约 §7）；scope 注册表为 mock；不承担生产保证
+- **profile**：[profile-manufacturing-equipment-fault-v1.yaml](docs/interfaces/profile-manufacturing-equipment-fault-v1.yaml)——六层映射对照，装得下 L1/L2/L4/L5，缺口显式记录在 L3/L6
+
+能力实现状态总表（哪些是设计、哪些跑过）见 [docs/STATUS.md](docs/STATUS.md)。
 
 ## 设计来源
 

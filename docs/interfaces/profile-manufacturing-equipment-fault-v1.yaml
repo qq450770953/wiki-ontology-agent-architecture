@@ -1,0 +1,107 @@
+# 行业本体 Profile：制造设备故障处置 v1
+# 对应 mvp-plan §4.1 首选试点：设备售后「故障码 → 处置动作」
+# 用途：验证 Neo4j Context Engine 六层模型「装不装得下」本方场景；
+#       第二个场景（MES 只读查询）复用本 profile 时只改 YAML、不改代码（P0-2 验收）。
+# 规则：六层是厂商观点，不是标准——对不上的层记为显式缺口（gaps），
+#       严禁反向删改本方字段去凑六层；本文件可 override，版本化走本体变更审批。
+profile_id: profile.manufacturing.equipment-fault
+version: 1
+based_on: neo4j-context-engine-six-layer   # 概念映射来源，非规范转换
+schema_binding: ontology-enterprise runtime-v1
+effective_from: 2026-10-26
+
+layers:
+  # ── 第 1 组：让 Agent 理解 ─────────────────────────────
+  L1_business_process:
+    layer_question: 事情是怎么走的
+    required: [process_definition, step_sequence, role_assignment, exception_path]
+    ours:
+      process_definition: 故障上报 → 消歧（设备/工位）→ 处置建议生成 → 人工审核 → 下发/工单回写
+      step_sequence: 对齐 architecture.md §4.3 六步管线（映射→消歧→绑定→执行→物化→汇总）
+      role_assignment: 审核人 = 处置步骤入库审批角色（mvp-plan「审批闸口 = 处置步骤入库审核」）
+      exception_path: 建议置信度不足 → 转人工；写入失败 → Saga 补偿（§4.3-4）
+    gaps: []                      # 该层装得下
+    override_allowed: false       # 流程层字段为强约定
+
+  L2_domain:
+    layer_question: 这个词是什么意思
+    required: [term_definitions, aliases, disambiguation_rules]
+    ours:
+      term_definitions:
+        - {term: 故障码, en: FaultCode, def: 设备控制器报出的错误编码，code-cause-step 层级顶层}
+        - {term: 工位, en: Station, def: 产线最小作业单元，故障归属的物理定位}
+        - {term: 处置步骤, en: RemediationStep, def: 经审核的可执行修复动作}
+      aliases:
+        - {type: FaultCode, aliases: [故障代码, 错误码, alarm code]}
+        - {type: Station, aliases: [工位号, station no.]}
+      disambiguation_rules: 同码不同设备系列时按 device_family 消歧（对齐 §4.3-2 消歧节点）
+    gaps: []                      # 该层装得下
+
+  # ── 第 2 组：连到数据 ─────────────────────────────────
+  L3_data_products:
+    layer_question: 有什么数据能用
+    required: [data_product_catalog, ownership, quality_sla]
+    ours:
+      data_product_catalog:
+        - {name: device-station-fault, grain: 故障码实例, owner: 售后知识库, status: 已建成（mvp-plan 数据基础=4）}
+        - {name: mes.readonly, grain: 生产订单/报工/设备状态, owner: MES 系统, status: 待接口确认（T5 前置）}
+      ownership: 数据盘点先行（mvp-plan v1.3 M3，W1-2）
+      quality_sla: 未定义          # ← 显式缺口
+    gaps:
+      - "quality_sla：Neo4j 层要求数据产品带质量 SLA，本方未定义；列入 W1-2 数据盘点产出"
+
+  L4_physical_systems:
+    layer_question: 数据实际存在哪里
+    required: [system_inventory, network_location, credentials_ref]
+    ours:
+      system_inventory:
+        - {system: MES, protocol: REST 或 SQL 二选一（connector-runtime §5）, location: 厂内网}
+        - {system: 售后知识库, protocol: SQLite 单文件, location: 本地}
+      network_location: 厂内网 192.168.x.x 段（MES 真实地址待 T5 确认）
+      credentials_ref: 环境引用，不落明文（connector-runtime §3「配置与秘密分离」）
+    gaps:
+      - "MES 实例地址/只读账号未确认——T5 启动前置条件，不阻塞本 profile"
+
+  L5_tools_integration:
+    layer_question: 怎么连、怎么调
+    required: [tool_contracts, integration_protocols, mcp_endpoints]
+    ours:
+      tool_contracts:
+        - {tool: fault.lookup, io: {in: code_prefix, out: "FaultCode[]"}, risk: L1, version: v1}
+        - {tool: remediation.suggest, io: {in: fault_id, out: "RemediationStep[]"}, risk: L1, version: v1}
+        - {tool: ticket.writeback, io: {in: "ticket_id + steps", out: receipt}, risk: L3, human_gate: true, version: v1}
+      integration_protocols: 统一 Tool Contract（connector-runtime §4）；LLM 不自由生成 SQL/URL
+      mcp_endpoints: 本体侧 = prototype 只读出口（interfaces/mcp-server-spec.md）；工具侧待接
+    gaps:
+      - "risk 分级 L3 的 ticket.writeback 需人工闸口——已设计（§3.6 L0-L4），运行时未建"
+
+  # ── 第 3 组：持续学习 ────────────────────────────────
+  L6_runtime_knowledge:
+    layer_question: 上次怎么做的、结果如何
+    required: [decision_memory, validated_learning_reuse, skill_distillation]
+    ours:
+      decision_memory: TaskRun 轨迹 + Lesson 四元组（§6.6：action/context/outcome/insight）
+      validated_learning_reuse: 固化须人工审批（§4.5）；「只复用经验证的学习」与本方原则同构
+      skill_distillation: "缺失——Lesson→Skill 晋升判据未定义（P1-1 待做：
+        同 area ≥3 次 / outcome 一致率 ≥80% / 有 verification artifact / 审批）"
+    gaps:
+      - "skill_distillation：六层要求的「重复事件蒸馏为可复用知识」本方无机制，列 P1-1"
+
+# ── 六层之外的本方独有能力（六层装不下，不删） ──────────
+beyond_six_layers:
+  contextpack_assembly: 上下文按预算组装（持久化/筛选/压缩/隔离 + trace_id，§3.2-5）
+  taskrun_evidence: TaskRun 完成证据契约（§3.3，外部回执≠模型汇总）
+  saga_compensation: 外部副作用逆序补偿（§4.3-4）
+  four_layer_evaluation: Outcome/Trajectory/Golden/CI 回归（§4.7）
+  memory_type_governance: preference/fact/policy/authorization 分类（§6.9）
+  note: "以上六层模型未覆盖；对照结论是「六层可作检查表，不可作替换框架」。"
+
+# ── 汇总 ────────────────────────────────────────────
+summary:
+  fits: [L1, L2, L4, L5]        # 装得下
+  partial: [L3]                 # 缺 quality_sla
+  missing_mechanism: [L6]       # 缺蒸馏机制
+  second_scenario_reuse:
+    target: MES 只读经营查询（mvp-plan 备选试点）
+    expected_change: 仅改 YAML——term_definitions 换指标词表、data_products 换 mes.readonly、tools 换 query 类
+    forbidden_change: 不改代码、不改六层结构定义

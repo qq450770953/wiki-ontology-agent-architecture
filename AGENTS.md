@@ -7,6 +7,8 @@
 
 - 本仓库是**架构设计文档仓**，不是代码仓。核心交付物是 `docs/architecture.md`（当前 v1.5）+ 两张架构图（SVG）+ README。
 - 可运行参考实现是独立的 [ontology-enterprise](https://github.com/qq450770953/ontology-enterprise)（Python CLI + SQLite），**不要**在本仓库写实现代码；确需实验时放 `.workbuddy/tmp_*` 并在完成后删除。
+- **例外（2026-10-26）**：`prototype/` 是唯一的在仓代码目录——本体只读服务出口原型（接口规约见 `docs/interfaces/mcp-server-spec.md`）。性质是**接口演示**，不承担生产保证，不新增依赖之外的功能；生产实现仍归 ontology-enterprise。
+- **状态规矩（2026-10-26）**：`docs/STATUS.md` 是「设计 vs 实现」唯一事实表。**新增架构章节必须先有一条已运行证据，否则只能写进 architecture.md §11.2 TODO**；STATUS.md 每行须有可重放的命令或文件路径，无证据只能标「未开始」，禁止「部分完成」。
 
 ## 2. 文档约定
 
