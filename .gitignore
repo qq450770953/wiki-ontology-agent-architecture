@@ -5,5 +5,9 @@
 Thumbs.db
 .DS_Store
 
+# Python
+__pycache__/
+*.pyc
+
 # 临时备份
 *.bak_v15

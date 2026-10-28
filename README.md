@@ -4,7 +4,18 @@
 
 > 让企业知识从"可检索"走向"可行动"：LLM Wiki 作为资产索引与治理入口，Ontology 统一语义，Context 重建世界当前状态，LangGraph Workflow 编排执行，固化经人工审批实现知识复利 + 认知同步。
 
-本仓库是一份**架构设计方案**（非实现代码），面向企业知识库 / AI Agent 平台的技术负责人和架构师。方案回答两个核心问题：**如何让 Agent 基于企业知识正确选择工具、绑定参数并完成跨系统查询；以及如何在数字世界中，用受治理的多模态/语言输入驱动可验证的数字动作？**
+本仓库以**架构设计为主，并带可运行原型**，面向企业知识库 / AI Agent 平台的技术负责人和架构师。方案回答两个核心问题：**如何让 Agent 基于企业知识正确选择工具、绑定参数并完成跨系统查询；以及如何在数字世界中，用受治理的多模态/语言输入驱动可验证的数字动作？**
+
+**已经跑起来的部分**（可复现，不是设计稿；跑法与边界见各目录 README）：
+
+| 能力 | 规模 | 实测结果 |
+|---|---|---|
+| 混合检索管道（分块 / BM25F / 向量路 / 图谱路 / RRF / 重排） | 232 chunk · 14 文档 | BM25F R@1 **0.548**、R@5 0.823、R@10 0.871、MRR@10 0.740；两次运行指标逐位一致 |
+| 检索评估与逐路消融 | 62 条人工标注查询 · 5 路模式 · 4 组消融 | 关键结论：**融合在本语料是负收益**，单路 BM25F 最优；根因是替身向量与 BM25 无互补信息 |
+| 只读本体服务出口 | 3 个方法（`schema.describe` / `object.query` / `context.assemble`） | 9 项验收 PASS：越权 403 无泄露、幂等、裁剪可解释、审计留痕 |
+| 单元与边界测试 | 76 个用例，零第三方依赖 | `python -m unittest discover -s prototype/retrieval -p "test_*.py"` |
+
+尚未实现的部分逐项写在 [STATUS.md](docs/STATUS.md)：真实 Elasticsearch / Milvus / Neo4j、真实 embedding 权重、跨系统写入、决策门控层（AgentJev，TODO）。**本文与各 README 中的设计契约，不等于已建成能力。**
 
 ## 核心设计
 
@@ -46,10 +57,17 @@ wiki-ontology-agent-architecture/
 ├── AGENTS.md                    # 面向 AI 会话的仓库操作规范（隐含工作流显式化）
 ├── LICENSE                      # MIT License
 ├── CONTRIBUTING.md              # 贡献指南
-├── prototype/                   # 只读服务出口原型（2026-10-26，HTTP 调试传输，非 MCP 标准）
-│   ├── mcp_server.py            # 三个只读能力：schema.describe / object.query / context.assemble
+├── prototype/                   # 可运行原型（非生产实现）
+│   ├── mcp_server.py            # 只读服务出口：schema.describe / object.query / context.assemble（HTTP 调试传输）
 │   ├── profile_loader.py        # 行业 profile 加载器 + 作用域校验 + mock 数据
-│   └── requirements.txt         # pyyaml
+│   ├── requirements.txt         # pyyaml
+│   └── retrieval/               # 混合检索与评估原型（零第三方依赖，2026-10-28）
+│       ├── pipeline.py          # 分块 / BM25F / 向量路 / 图谱路 / RRF / 重排 + 错误码表
+│       ├── evaluate.py          # Recall@k、MRR、首条命中率、消融、分类拆解、基线对比
+│       ├── golden_set.jsonl     # 62 条人工标注评估查询
+│       ├── ontology_bridge.json # 本体—检索表面形式桥接（schema 1.1，29 概念 / 127 表面形式）
+│       ├── test_retrieval.py    # 76 个单元与边界用例
+│       └── README.md            # 实测指标、消融结论、错误码、替换点与不能声称的内容
 └── docs/
     ├── architecture.md          # 完整架构设计文档（核心交付物）
     ├── STATUS.md                # 能力实现状态表（设计 vs 运行时证据，2026-10-26 起）
@@ -83,6 +101,8 @@ wiki-ontology-agent-architecture/
 - 想设计 ERP/MES/WMS 接入层：看 [connector-runtime-design.md](docs/research/connector-runtime-design.md)
 - 想评估 token 成本：看 architecture.md 第 7 章
 - 想了解经验沉淀（Lesson / 会话记忆协议）：看 architecture.md 第 6.6 节与 8.1 节
+- 想跑检索与评估、看实测指标与消融结论：看 [prototype/retrieval/README.md](prototype/retrieval/README.md)
+- 想知道哪些是已运行验证、哪些只是设计：看 [docs/STATUS.md](docs/STATUS.md)
 - 想了解运行时安全（动态自主度调节 / 适用域声明 / 超域降级）：看 architecture.md 第 4.4、4.5、6.5、9 节
 - 想落地实施：看 architecture.md 第 11 章落地路线图 + [mvp-plan.md](docs/research/mvp-plan.md)（含 Connector Runtime MVP 和试点四维评估矩阵）
 - 想参与贡献：读 [CONTRIBUTING.md](CONTRIBUTING.md)
@@ -106,7 +126,11 @@ wiki-ontology-agent-architecture/
 
 想动手体验语义底座：clone ontology-enterprise 后 `python3 scripts/ontology_enterprise.py --root ./ontology init` 即可起一个带 RBAC 与审计的本地图谱。
 
-## 本仓原型（prototype/，2026-10-26）
+## 本仓原型（prototype/）
+
+原型分两块，性质相同：**用最小可运行代码证明某个设计契约不是纸面假设**，都不承诺生产保证。
+
+### 1. 只读本体服务出口（2026-10-26）
 
 「本体独立成层」的最小可运行证据：一个**只读**服务出口，让第二个 Agent 不 import 本体代码即可读取语义。
 
@@ -116,6 +140,16 @@ wiki-ontology-agent-architecture/
 - **验收**：2026-10-26 实测 9 项 PASS（双进程并发同版本、越权 403 无泄露、幂等、裁剪可解释、审计留痕），记录见 `prototype/mcp_server.py` 头部
 - **边界**：非 MCP 标准传输（升级路径见规约 §7）；scope 注册表为 mock；不承担生产保证
 - **profile**：[profile-manufacturing-equipment-fault-v1.yaml](docs/interfaces/profile-manufacturing-equipment-fault-v1.yaml)——六层映射对照，装得下 L1/L2/L4/L5，缺口显式记录在 L3/L6
+
+### 2. 混合检索与评估（2026-10-28）
+
+「检索可被度量」的最小可运行证据：分块 → 三路召回 → RRF → 重排 → 指标，零第三方依赖。
+
+- **指标**：232 chunk / 14 文档 / 62 条人工标注；BM25F R@1 **0.548**、R@5 0.823、R@10 0.871、MRR@10 0.740，两次运行逐位一致
+- **消融**：`--ablation` 实测 **每一路加进去都拉低指标**，单路 BM25F 最优；根因是替身向量与 BM25 共享 token 空间、无互补信息
+- **可替换点**：`Embedder` 注入式，`HttpEmbedder` 已验证协议行为（本地 stub 服务），换真实 embedding 不改检索代码
+- **测试**：76 个用例覆盖分块、索引、融合、指标、错误码与 HTTP 协议失败路径
+- **边界**：向量路是 TF-IDF 替身、图谱路是内存图、语料是本仓文档；详见 [prototype/retrieval/README.md](prototype/retrieval/README.md)
 
 能力实现状态总表（哪些是设计、哪些跑过）见 [docs/STATUS.md](docs/STATUS.md)。
 
